@@ -1,6 +1,6 @@
 # Financial Services Cyber Risk Intelligence Platform
 
-**Author:** Ameer Mohammad Khan — 3rd Year CS, University of Toronto  
+**Author:** Ameer Mohammad Khan — 4rd Year CS, University of Toronto  
 **Status:** 🔨 In Progress (30-Day Build)
 
 ---
