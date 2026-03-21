@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env
+
+# Database (keep schema, not the actual data file)
+src/database/grc_platform.db
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
