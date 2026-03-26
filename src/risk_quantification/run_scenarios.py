@@ -170,4 +170,4 @@ def run_scenarios(scenario_keys=None):
 
 
 if __name__ == "__main__":
-    run_scenarios(["data_breach", "ransomware"])
+    run_scenarios()
