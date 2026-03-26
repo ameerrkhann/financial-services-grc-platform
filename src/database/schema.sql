@@ -34,3 +34,23 @@ CREATE TABLE IF NOT EXISTS control_gaps (
     remediation     TEXT,               -- what to do to fix it
     FOREIGN KEY (assessment_id) REFERENCES assessments(id)
 );
+
+-- Week 2: Quantitative Risk Scenarios Table
+CREATE TABLE IF NOT EXISTS risk_scenarios (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenario_key    TEXT NOT NULL,
+    scenario_name   TEXT NOT NULL,
+    loss_low        REAL NOT NULL,
+    loss_high       REAL NOT NULL,
+    freq_low        REAL NOT NULL,
+    freq_high       REAL NOT NULL,
+    ale             REAL NOT NULL,       -- Annualised Loss Expectancy
+    median          REAL NOT NULL,
+    percentile_90   REAL NOT NULL,
+    percentile_95   REAL NOT NULL,
+    prob_over_1m    REAL NOT NULL,       -- % chance of exceeding $1M
+    prob_over_5m    REAL NOT NULL,       -- % chance of exceeding $5M
+    control_cost    REAL,                -- estimated annual control cost
+    date_run        TEXT NOT NULL,
+    osfi_ref        TEXT
+);

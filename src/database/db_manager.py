@@ -91,6 +91,69 @@ def get_assessment_gaps(assessment_id):
     conn.close()
     return rows
 
+def save_risk_scenario(scenario_key, scenario_name, loss_low, loss_high,
+                        freq_low, freq_high, ale, median, percentile_90,
+                        percentile_95, prob_over_1m, prob_over_5m,
+                        control_cost=None, osfi_ref=""):
+    """Saves a FAIR scenario simulation result to the database."""
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO risk_scenarios (
+            scenario_key, scenario_name, loss_low, loss_high,
+            freq_low, freq_high, ale, median, percentile_90,
+            percentile_95, prob_over_1m, prob_over_5m,
+            control_cost, date_run, osfi_ref
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'), ?)
+    """, (
+        scenario_key, scenario_name, loss_low, loss_high,
+        freq_low, freq_high, ale, median, percentile_90,
+        percentile_95, prob_over_1m, prob_over_5m,
+        control_cost, osfi_ref
+    ))
+    conn.commit()
+    conn.close()
+
+
+def get_all_risk_scenarios():
+    """Returns all saved scenario results, newest first."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT * FROM risk_scenarios
+        ORDER BY date_run DESC, id DESC
+    """).fetchall()
+    conn.close()
+    return rows
+
+
+def get_high_risk_scenarios(ale_threshold=1_000_000):
+    """Returns scenarios where ALE exceeds the given threshold."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT scenario_name, ale, percentile_90, prob_over_1m, date_run
+        FROM risk_scenarios
+        WHERE ale > ?
+        ORDER BY ale DESC
+    """, (ale_threshold,)).fetchall()
+    conn.close()
+    return rows
+
+
+def get_latest_scenario_run():
+    """Returns the most recent result for each scenario key."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT scenario_key, scenario_name, ale, percentile_90,
+               prob_over_1m, prob_over_5m, control_cost, date_run
+        FROM risk_scenarios
+        WHERE id IN (
+            SELECT MAX(id) FROM risk_scenarios
+            GROUP BY scenario_key
+        )
+        ORDER BY ale DESC
+    """).fetchall()
+    conn.close()
+    return rows
+
 
 # Quick test — run this file directly to confirm everything works
 if __name__ == "__main__":

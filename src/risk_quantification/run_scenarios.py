@@ -17,51 +17,24 @@ init(autoreset=True)
 
 
 def save_scenario_result(scenario_key, scenario, result):
-    """Saves a scenario result to the database."""
-    conn = get_connection()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS risk_scenarios (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            scenario_key    TEXT NOT NULL,
-            scenario_name   TEXT NOT NULL,
-            loss_low        REAL,
-            loss_high       REAL,
-            freq_low        REAL,
-            freq_high       REAL,
-            ale             REAL,
-            median          REAL,
-            percentile_90   REAL,
-            percentile_95   REAL,
-            prob_over_1m    REAL,
-            prob_over_5m    REAL,
-            date_run        TEXT,
-            osfi_ref        TEXT
-        )
-    """)
-    conn.execute("""
-        INSERT INTO risk_scenarios (
-            scenario_key, scenario_name, loss_low, loss_high,
-            freq_low, freq_high, ale, median, percentile_90,
-            percentile_95, prob_over_1m, prob_over_5m,
-            date_run, osfi_ref
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'), ?)
-    """, (
-        scenario_key,
-        scenario["name"],
-        scenario["loss_low"],
-        scenario["loss_high"],
-        scenario["freq_low"],
-        scenario["freq_high"],
-        result["ale"],
-        result["median"],
-        result["percentile_90"],
-        result["percentile_95"],
-        result["prob_over_1m"],
-        result["prob_over_5m"],
-        scenario["osfi_ref"],
-    ))
-    conn.commit()
-    conn.close()
+    """Saves a scenario result using the central db_manager."""
+    from src.database.db_manager import save_risk_scenario
+    save_risk_scenario(
+        scenario_key  = scenario_key,
+        scenario_name = scenario["name"],
+        loss_low      = scenario["loss_low"],
+        loss_high     = scenario["loss_high"],
+        freq_low      = scenario["freq_low"],
+        freq_high     = scenario["freq_high"],
+        ale           = result["ale"],
+        median        = result["median"],
+        percentile_90 = result["percentile_90"],
+        percentile_95 = result["percentile_95"],
+        prob_over_1m  = result["prob_over_1m"],
+        prob_over_5m  = result["prob_over_5m"],
+        control_cost  = scenario.get("control_cost"),
+        osfi_ref      = scenario["osfi_ref"],
+    )
 
 
 def print_scenario_result(scenario_key, scenario, result):
