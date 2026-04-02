@@ -1,7 +1,7 @@
 # Financial Services Cyber Risk Intelligence Platform
 
 **Author:** Ameer Mohammad Khan  
-**Background:** 3rd Year CS @ University of Toronto | Data Analyst I @ Manulife | Part-time @ Scotiabank  
+**Background:** 4rd Year CS @ University of Toronto | Data Analyst I @ Manulife | Part-time @ Scotiabank  
 **Target Role:** GRC Cybersecurity Analyst — Canadian Financial Services  
 **Status:** 🔨 Week 2 Complete — Quantitative Risk Engine
 
