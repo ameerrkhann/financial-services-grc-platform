@@ -54,3 +54,35 @@ CREATE TABLE IF NOT EXISTS risk_scenarios (
     date_run        TEXT NOT NULL,
     osfi_ref        TEXT
 );
+
+-- Week 3: Vendor Risk Assessment Tables
+
+-- One row per vendor assessment run
+CREATE TABLE IF NOT EXISTS vendor_assessments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendor_name     TEXT NOT NULL,
+    service_type    TEXT NOT NULL,
+    criticality     TEXT NOT NULL,
+    assessor        TEXT,
+    assessment_date TEXT NOT NULL,
+    score           INTEGER NOT NULL,
+    risk_tier       TEXT NOT NULL,
+    gap_count       INTEGER,
+    critical_gaps   INTEGER,
+    notes           TEXT,
+    date_created    TEXT DEFAULT (date('now'))
+);
+
+-- One row per question response per assessment
+CREATE TABLE IF NOT EXISTS vendor_responses (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    assessment_id   INTEGER NOT NULL,
+    question_id     TEXT NOT NULL,
+    category        TEXT NOT NULL,
+    question_text   TEXT NOT NULL,
+    answer          TEXT NOT NULL,       -- Yes/Partial/No/N/A
+    weight          INTEGER NOT NULL,
+    points_earned   INTEGER NOT NULL,
+    points_possible INTEGER NOT NULL,
+    FOREIGN KEY (assessment_id) REFERENCES vendor_assessments(id)
+);
