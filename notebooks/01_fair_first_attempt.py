@@ -1,6 +1,40 @@
-# src/risk_quantification/riskquant_test.py
-# FAIR implementation using numpy/scipy directly
-# (riskquant incompatible with Python 3.13 — same math, no dependency)
+# notebooks/01_fair_first_attempt.py
+#
+# ─────────────────────────────────────────────────────────────────────────
+#  SUPERSEDED — kept as a record of how the FAIR engine was arrived at.
+#  Do not import this. The working engine is
+#  src/risk_quantification/fair_engine.py.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# This was the first working FAIR model in the project, written while
+# learning the methodology. Two things came out of it:
+#
+#   1. riskquant (Netflix's open-source FAIR library) does not support
+#      Python 3.13, so the maths is implemented directly with numpy here.
+#      That decision carried through to the production engine.
+#
+#   2. The annual-loss line below is WRONG, and this file is kept mainly
+#      to show where the error was:
+#
+#          annual_losses = annual_freqs * loss_magnitudes
+#
+#      That draws ONE loss magnitude per simulated year and multiplies it
+#      by the number of events. It forces every event in a year to cost
+#      exactly the same amount, which is not what FAIR specifies and which
+#      fattens the tail badly — the 99th percentile came out 22-36% too
+#      high across the five scenarios.
+#
+#      FAIR treats each loss event as an independent draw. fair_engine.py
+#      sums N independent log-normal draws per year, where N ~ Poisson(λ):
+#
+#          year_index    = np.repeat(np.arange(n), annual_freqs)
+#          annual_losses = np.bincount(year_index, weights=loss_magnitudes)
+#
+#      The mean ALE barely moved (E[N]·E[X] holds either way). The tail is
+#      where the error lived. See notebooks/README.md for the numbers.
+#
+# The code below is preserved exactly as it was originally written,
+# including the unused scipy import.
 
 import numpy as np
 from scipy import stats
