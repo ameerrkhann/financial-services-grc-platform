@@ -12,7 +12,7 @@ from openpyxl.utils import get_column_letter
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from src.database.db_manager import get_connection, initialise_database
-from src.risk_quantification.fair_engine import run_fair_simulation
+from src.risk_quantification.fair_engine import run_fair_simulation, seed_for
 from src.risk_quantification.scenarios import SCENARIOS
 
 OUTPUT_DIR  = os.path.join(os.path.dirname(__file__), "../../dashboards")
@@ -55,8 +55,12 @@ def get_risk_scenarios_df(conn):
 
 
 def get_lec_df():
-    """Recomputes loss exceedance curve points for each scenario."""
-    np.random.seed(42)  # makes the export reproducible
+    """
+    Recomputes loss exceedance curve points for each scenario.
+
+    Uses the same per-scenario seeds as run_scenarios.py so the curve in Power
+    BI is drawn from the identical simulation that produced the stored ALE.
+    """
     records = []
     for key, scenario in SCENARIOS.items():
         result   = run_fair_simulation(
@@ -64,6 +68,7 @@ def get_lec_df():
             loss_high = scenario["loss_high"],
             freq_low  = scenario["freq_low"],
             freq_high = scenario["freq_high"],
+            seed      = seed_for(scenario["id"]),
         )
         losses   = result["annual_losses"]
         max_loss = np.percentile(losses, 99.5)

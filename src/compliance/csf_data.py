@@ -106,6 +106,10 @@ CSF_FUNCTIONS = {
     },
 }
 
+# Target maturity every function is being managed towards.
+# 4 = "Managed" on the scale above: controls measured and tracked with metrics.
+DEFAULT_TARGET_SCORE = 4
+
 # Priority order for remediation (lower = fix first)
 REMEDIATION_PRIORITY = {
     "Govern":   1,
@@ -121,12 +125,13 @@ GAP_METADATA = {
     "Govern": {
         "effort":         "Low",
         "effort_weeks":   4,
-        "business_impact": "Without governance, no other function will be sustained. "
-                           "OSFI B-13 requires documented cyber risk governance.",
+        "business_impact": "Without governance, no other function will be sustained. OSFI "
+                           "B-13's Governance and Risk Management domain expects documented "
+                           "technology and cyber risk governance.",
         "quick_win":      "Draft a 1-page cybersecurity policy and get CISO sign-off this month.",
         "gap":            "No formal cybersecurity governance framework in place.",
         "priority":       "Critical",
-        "nist_ref":       "GV.OC-01",
+        "nist_ref":       "GV.PO-01",
         "iso_ref":        "A.5.1",
         "soc2_ref":       "CC1.1",
         "remediation":    "Draft a cybersecurity policy and get executive sign-off. "
@@ -141,7 +146,7 @@ GAP_METADATA = {
         "gap":            "Incomplete or missing asset inventory and risk assessment.",
         "priority":       "Critical",
         "nist_ref":       "ID.AM-01",
-        "iso_ref":        "A.8.1",
+        "iso_ref":        "A.5.9",
         "soc2_ref":       "CC6.1",
         "remediation":    "Deploy an asset discovery tool. Conduct a formal risk "
                           "assessment and document findings in a risk register.",
@@ -152,10 +157,10 @@ GAP_METADATA = {
         "business_impact": "Without core controls, a single phishing email can compromise "
                            "the entire network. MFA alone blocks 99% of automated attacks.",
         "quick_win":      "Enable MFA on email and remote access within 2 weeks.",
-        "gap":            "Core protective controls not fully implemented.",
+        "gap":            "Core protective controls (MFA, encryption, access control) not fully implemented.",
         "priority":       "High",
-        "nist_ref":       "PR.AC-01",
-        "iso_ref":        "A.9.1",
+        "nist_ref":       "PR.AA-01",
+        "iso_ref":        "A.5.15, A.8.5",
         "soc2_ref":       "CC6.1",
         "remediation":    "Enforce MFA on all systems. Encrypt data at rest and in transit. "
                           "Apply least-privilege access across all user accounts.",
@@ -169,7 +174,7 @@ GAP_METADATA = {
         "gap":            "Insufficient monitoring — security events may go unnoticed.",
         "priority":       "High",
         "nist_ref":       "DE.CM-01",
-        "iso_ref":        "A.12.4",
+        "iso_ref":        "A.8.15, A.8.16",
         "soc2_ref":       "CC7.2",
         "remediation":    "Implement a SIEM solution. Define alerting thresholds "
                           "and assign ownership for event review.",
@@ -177,16 +182,18 @@ GAP_METADATA = {
     "Respond": {
         "effort":         "Low",
         "effort_weeks":   6,
-        "business_impact": "No response plan means chaos during an incident. "
-                           "OSFI requires notification within 24 hours of a significant incident.",
+        "business_impact": "No response plan means chaos during an incident. OSFI's "
+                           "Technology and Cyber Security Incident Reporting advisory "
+                           "requires reportable incidents to be reported within 24 hours.",
         "quick_win":      "Assign an incident response lead and draft a basic contact tree today.",
         "gap":            "No documented or tested incident response plan.",
         "priority":       "High",
-        "nist_ref":       "RS.RP-01",
-        "iso_ref":        "A.16.1",
+        "nist_ref":       "RS.MA-01",
+        "iso_ref":        "A.5.24, A.5.26",
         "soc2_ref":       "CC7.3",
-        "remediation":    "Create an Incident Response Plan. Include OSFI 24-hour "
-                          "notification requirement. Run a tabletop exercise within 90 days.",
+        "remediation":    "Create an Incident Response Plan. Include the OSFI 24-hour "
+                          "incident reporting step from the Technology and Cyber Security "
+                          "Incident Reporting advisory. Run a tabletop exercise within 90 days.",
     },
     "Recover": {
         "effort":         "Medium",
@@ -197,7 +204,7 @@ GAP_METADATA = {
         "gap":            "Backup and recovery procedures not tested or formally defined.",
         "priority":       "Medium",
         "nist_ref":       "RC.RP-01",
-        "iso_ref":        "A.17.1",
+        "iso_ref":        "A.5.29, A.5.30, A.8.13",
         "soc2_ref":       "A1.2",
         "remediation":    "Test backups quarterly. Define and document Recovery Time "
                           "Objectives (RTOs) for all critical systems.",

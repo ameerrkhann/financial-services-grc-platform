@@ -10,7 +10,12 @@ from colorama import Fore, Style, init
 # Add project root to path so imports work
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from src.compliance.csf_data import CSF_FUNCTIONS, REMEDIATION_PRIORITY
+from src.compliance.csf_data import (
+    CSF_FUNCTIONS,
+    REMEDIATION_PRIORITY,
+    GAP_METADATA,
+    DEFAULT_TARGET_SCORE,
+)
 from src.database.db_manager import (
     initialise_database,
     insert_assessment,
@@ -21,6 +26,10 @@ from src.database.db_manager import (
 )
 
 init(autoreset=True)  # initialise colorama
+
+# A function scoring below this is treated as a control gap.
+# 3 = "Defined" — documented and consistently followed.
+GAP_THRESHOLD = 3
 
 
 def get_score_colour(score):
@@ -78,79 +87,30 @@ def score_one_function(func_name, func_data):
     return score, rationale
 
 
-def generate_gaps(func_name, score, assessment_id):
-    """If score < 3, generates a control gap record."""
-    if score >= 3:
+def generate_gaps(func_name, score, assessment_id=None):
+    """
+    Returns the control gap for a function scoring below the target, or None.
+
+    Gap text and framework references come from GAP_METADATA in csf_data.py so
+    there is exactly one place where a control ID is written down. Pass an
+    assessment_id to also persist the gap to the database.
+    """
+    if score >= GAP_THRESHOLD:
         return None
 
-    gap_map = {
-        "Govern": {
-            "gap": "No formal cybersecurity governance framework in place.",
-            "priority": "Critical",
-            "nist_ref": "GV.OC-01",
-            "iso_ref": "A.5.1",
-            "soc2_ref": "CC1.1",
-            "remediation": "Draft a cybersecurity policy and get executive sign-off. "
-                           "Establish a quarterly risk reporting cadence to the board.",
-        },
-        "Identify": {
-            "gap": "Incomplete or missing asset inventory and risk assessment.",
-            "priority": "Critical",
-            "nist_ref": "ID.AM-01",
-            "iso_ref": "A.8.1",
-            "soc2_ref": "CC6.1",
-            "remediation": "Deploy an asset discovery tool. Conduct a formal risk "
-                           "assessment and document findings in a risk register.",
-        },
-        "Protect": {
-            "gap": "Core protective controls (MFA, encryption, access control) not fully implemented.",
-            "priority": "High",
-            "nist_ref": "PR.AC-01",
-            "iso_ref": "A.9.1",
-            "soc2_ref": "CC6.1",
-            "remediation": "Enforce MFA on all systems. Encrypt data at rest and in transit. "
-                           "Apply least-privilege access across all user accounts.",
-        },
-        "Detect": {
-            "gap": "Insufficient monitoring — security events may go unnoticed.",
-            "priority": "High",
-            "nist_ref": "DE.CM-01",
-            "iso_ref": "A.12.4",
-            "soc2_ref": "CC7.2",
-            "remediation": "Implement a SIEM solution. Define alerting thresholds "
-                           "and assign ownership for event review.",
-        },
-        "Respond": {
-            "gap": "No documented or tested incident response plan.",
-            "priority": "High",
-            "nist_ref": "RS.RP-01",
-            "iso_ref": "A.16.1",
-            "soc2_ref": "CC7.3",
-            "remediation": "Create an Incident Response Plan. Include OSFI 24-hour "
-                           "notification requirement. Run a tabletop exercise within 90 days.",
-        },
-        "Recover": {
-            "gap": "Backup and recovery procedures not tested or formally defined.",
-            "priority": "Medium",
-            "nist_ref": "RC.RP-01",
-            "iso_ref": "A.17.1",
-            "soc2_ref": "A1.2",
-            "remediation": "Test backups quarterly. Define and document Recovery Time "
-                           "Objectives (RTOs) for all critical systems.",
-        },
-    }
+    gap_info = GAP_METADATA[func_name]
 
-    gap_info = gap_map[func_name]
-    insert_control_gap(
-        assessment_id=assessment_id,
-        function_name=func_name,
-        gap_description=gap_info["gap"],
-        priority=gap_info["priority"],
-        nist_ref=gap_info["nist_ref"],
-        iso27001_ref=gap_info["iso_ref"],
-        soc2_ref=gap_info["soc2_ref"],
-        remediation=gap_info["remediation"],
-    )
+    if assessment_id is not None:
+        insert_control_gap(
+            assessment_id=assessment_id,
+            function_name=func_name,
+            gap_description=gap_info["gap"],
+            priority=gap_info["priority"],
+            nist_ref=gap_info["nist_ref"],
+            iso27001_ref=gap_info["iso_ref"],
+            soc2_ref=gap_info["soc2_ref"],
+            remediation=gap_info["remediation"],
+        )
     return gap_info
 
 
@@ -165,7 +125,7 @@ def print_results(org_name, scores, gaps):
     for func_name, (score, rationale) in scores.items():
         colour    = get_score_colour(score)
         bar       = "█" * score + "░" * (5 - score)
-        status    = "✅ OK" if score >= 3 else "⚠️  GAP"
+        status    = "✅ OK" if score >= GAP_THRESHOLD else "⚠️  GAP"
         table_data.append([
             func_name,
             f"{colour}{score}/5{Style.RESET_ALL}",
@@ -226,7 +186,8 @@ def run_assessment():
 
     for func_name, func_data in CSF_FUNCTIONS.items():
         score, rationale = score_one_function(func_name, func_data)
-        insert_function_score(assessment_id, func_name, score, rationale)
+        insert_function_score(assessment_id, func_name, score, rationale,
+                              target_score=DEFAULT_TARGET_SCORE)
         scores[func_name] = (score, rationale)
 
         gap = generate_gaps(func_name, score, assessment_id)

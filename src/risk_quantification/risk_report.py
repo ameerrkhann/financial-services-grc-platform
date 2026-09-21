@@ -33,13 +33,19 @@ def print_risk_report():
 
     print(f"\n{Fore.CYAN}  LATEST SCENARIO RESULTS{Style.RESET_ALL}\n")
     table = []
-    total_ale = 0
+    total_ale      = 0
+    total_residual = 0
     for row in latest:
-        ale          = row["ale"]
-        control_cost = row["control_cost"] or 0
-        roi          = ((ale - control_cost) / ale * 100) if ale > 0 else 0
-        total_ale   += ale
-        colour       = Fore.RED if ale > 2_000_000 else Fore.YELLOW
+        ale           = row["ale"]
+        control_cost  = row["control_cost"] or 0
+        effectiveness = row["control_effectiveness"] or 0
+        residual      = (row["residual_ale"]
+                         if row["residual_ale"] is not None
+                         else ale * (1 - effectiveness))
+        rosi          = row["rosi"] or 0
+        total_ale     += ale
+        total_residual += residual
+        colour        = Fore.RED if ale > 2_000_000 else Fore.YELLOW
 
         table.append([
             row["scenario_name"],
@@ -47,16 +53,20 @@ def print_risk_report():
             format_currency(row["percentile_90"]),
             f"{row['prob_over_1m']:.0f}%",
             format_currency(control_cost),
-            f"{roi:.0f}%",
-            row["date_run"],
+            f"{effectiveness:.0%}",
+            format_currency(residual),
+            f"{rosi * 100:.0f}%",
         ])
 
     print(tabulate(
         table,
-        headers=["Scenario", "ALE", "90th %ile",
-                 "P(>$1M)", "Control Cost", "Control ROI", "Date"],
+        headers=["Scenario", "ALE", "90th %ile", "P(>$1M)", "Control Cost",
+                 "Ctrl Eff.", "Residual ALE", "ROSI"],
         tablefmt="rounded_outline"
     ))
+    print("  Ctrl Eff. = assumed control effectiveness (an assumption, "
+          "not a measurement).")
+    print("  ROSI = (risk reduction − control cost) / control cost.")
 
     print(f"\n  {Fore.YELLOW}Combined Portfolio ALE: "
           f"{format_currency(total_ale)}{Style.RESET_ALL}")
@@ -91,14 +101,22 @@ def print_risk_report():
           f"{format_currency(max(r['ale'] for r in latest))}")
     print(f"  Scenarios exceeding $1M    : {len(high_risk)}")
     print(f"  ─────────────────────────────────────────────────────")
-    print(f"  Recommendation: Prioritise controls for the top 2")
-    print(f"  scenarios by ALE. Combined control investment of")
-
     total_control = sum(
         r["control_cost"] for r in latest if r["control_cost"]
     )
-    print(f"  {format_currency(total_control)}/year reduces portfolio ALE by an")
-    print(f"  estimated 60–80%, delivering positive ROI within Year 1.")
+    reduction     = total_ale - total_residual
+    portfolio_rosi = ((reduction - total_control) / total_control * 100
+                      if total_control else 0)
+
+    print(f"  Residual ALE after controls : {format_currency(total_residual)}")
+    print(f"  Total control investment   : {format_currency(total_control)}/year")
+    print(f"  Portfolio risk reduction   : {format_currency(reduction)}/year "
+          f"({reduction / total_ale:.0%} of ALE)")
+    print(f"  Portfolio ROSI             : {portfolio_rosi:.0f}%")
+    print(f"  ─────────────────────────────────────────────────────")
+    print(f"  Recommendation: Prioritise controls for the top 2 scenarios by")
+    print(f"  ALE. On the documented control-effectiveness assumptions, the")
+    print(f"  full programme returns {portfolio_rosi:.0f}% in Year 1.")
     print(f"\n{'=' * 65}\n")
 
 

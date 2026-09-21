@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS function_scores (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     assessment_id   INTEGER NOT NULL,
     function_name   TEXT NOT NULL,      -- e.g. "Govern", "Identify"
-    score           INTEGER NOT NULL,   -- 1 to 5
+    score           INTEGER NOT NULL,   -- 1 to 5 (current maturity)
+    target_score    INTEGER,            -- 1 to 5 (target maturity for this function)
     rationale       TEXT,               -- why this score was given
     FOREIGN KEY (assessment_id) REFERENCES assessments(id)
 );
@@ -51,6 +52,9 @@ CREATE TABLE IF NOT EXISTS risk_scenarios (
     prob_over_1m    REAL NOT NULL,       -- % chance of exceeding $1M
     prob_over_5m    REAL NOT NULL,       -- % chance of exceeding $5M
     control_cost    REAL,                -- estimated annual control cost
+    control_effectiveness REAL,          -- assumed share of ALE the controls remove (0-1)
+    residual_ale    REAL,                -- ALE remaining after controls
+    rosi            REAL,                -- Return on Security Investment (ratio, 0.5 = 50%)
     date_run        TEXT NOT NULL,
     osfi_ref        TEXT
 );

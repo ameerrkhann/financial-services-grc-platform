@@ -9,7 +9,11 @@ import matplotlib.ticker as mticker
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from src.risk_quantification.fair_engine import run_fair_simulation, format_currency
+from src.risk_quantification.fair_engine import (
+    run_fair_simulation,
+    format_currency,
+    seed_for,
+)
 from src.risk_quantification.scenarios import SCENARIOS
 
 # Output folder for saved charts
@@ -181,6 +185,7 @@ def run_all_curves():
             loss_high = scenario["loss_high"],
             freq_low  = scenario["freq_low"],
             freq_high = scenario["freq_high"],
+            seed      = seed_for(scenario["id"]),
         )
         all_results[key] = (scenario, result)
         print("done.")

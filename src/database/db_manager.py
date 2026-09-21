@@ -4,27 +4,75 @@
 import sqlite3
 import os
 
-# The database file lives in the same folder as this script
-DB_PATH = os.path.join(os.path.dirname(__file__), "grc_platform.db")
-SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
+# The database file lives in the same folder as this script.
+# Set GRC_DB_PATH to point somewhere else — the test suite uses this so it
+# never touches the real database.
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(__file__), "grc_platform.db")
+SCHEMA_PATH     = os.path.join(os.path.dirname(__file__), "schema.sql")
+
+
+def get_db_path():
+    """Returns the active database path (GRC_DB_PATH overrides the default)."""
+    return os.environ.get("GRC_DB_PATH") or DEFAULT_DB_PATH
+
+
+# Kept for backwards compatibility with anything importing DB_PATH directly.
+DB_PATH = get_db_path()
 
 
 def get_connection():
     """Returns a connection to the SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(get_db_path())
     conn.row_factory = sqlite3.Row  # lets you access columns by name
     return conn
 
 
-def initialise_database():
-    """Creates all tables if they don't exist yet."""
+# Columns added after the first release. A database created by an older version
+# of the schema is missing these, and every query against it fails with
+# "no such column". initialise_database() adds them in place instead.
+MIGRATIONS = {
+    "function_scores": {
+        "target_score": "INTEGER",
+    },
+    "risk_scenarios": {
+        "control_effectiveness": "REAL",
+        "residual_ale":          "REAL",
+        "rosi":                  "REAL",
+    },
+}
+
+
+def _apply_migrations(conn, verbose=True):
+    """Adds any columns a stale database is missing. Safe to run every time."""
+    added = []
+    for table, columns in MIGRATIONS.items():
+        existing = {
+            row["name"]
+            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if not existing:
+            continue  # table not created yet — the schema script handles it
+        for column, decl in columns.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+                added.append(f"{table}.{column}")
+    conn.commit()
+    if added and verbose:
+        print(f"   ↳ schema updated: added {', '.join(added)}")
+    return added
+
+
+def initialise_database(verbose=True):
+    """Creates all tables if they don't exist yet, then migrates stale ones."""
     with open(SCHEMA_PATH, "r") as f:
         schema = f.read()
     conn = get_connection()
     conn.executescript(schema)
     conn.commit()
+    _apply_migrations(conn, verbose=verbose)
     conn.close()
-    print("✅ Database initialised successfully.")
+    if verbose:
+        print("✅ Database initialised successfully.")
 
 
 def insert_assessment(org_name, assessor, date_run, notes=""):
@@ -40,14 +88,15 @@ def insert_assessment(org_name, assessor, date_run, notes=""):
     return assessment_id
 
 
-def insert_function_score(assessment_id, function_name, score, rationale=""):
-    """Saves a score for one CSF function."""
+def insert_function_score(assessment_id, function_name, score,
+                          rationale="", target_score=None):
+    """Saves a current (and optionally target) score for one CSF function."""
     conn = get_connection()
     conn.execute(
         """INSERT INTO function_scores 
-           (assessment_id, function_name, score, rationale) 
-           VALUES (?, ?, ?, ?)""",
-        (assessment_id, function_name, score, rationale)
+           (assessment_id, function_name, score, target_score, rationale) 
+           VALUES (?, ?, ?, ?, ?)""",
+        (assessment_id, function_name, score, target_score, rationale)
     )
     conn.commit()
     conn.close()
@@ -94,7 +143,9 @@ def get_assessment_gaps(assessment_id):
 def save_risk_scenario(scenario_key, scenario_name, loss_low, loss_high,
                         freq_low, freq_high, ale, median, percentile_90,
                         percentile_95, prob_over_1m, prob_over_5m,
-                        control_cost=None, osfi_ref=""):
+                        control_cost=None, osfi_ref="",
+                        control_effectiveness=None, residual_ale=None,
+                        rosi=None):
     """Saves a FAIR scenario simulation result to the database."""
     conn = get_connection()
     conn.execute("""
@@ -102,13 +153,15 @@ def save_risk_scenario(scenario_key, scenario_name, loss_low, loss_high,
             scenario_key, scenario_name, loss_low, loss_high,
             freq_low, freq_high, ale, median, percentile_90,
             percentile_95, prob_over_1m, prob_over_5m,
-            control_cost, date_run, osfi_ref
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'), ?)
+            control_cost, control_effectiveness, residual_ale, rosi,
+            date_run, osfi_ref
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'), ?)
     """, (
         scenario_key, scenario_name, loss_low, loss_high,
         freq_low, freq_high, ale, median, percentile_90,
         percentile_95, prob_over_1m, prob_over_5m,
-        control_cost, osfi_ref
+        control_cost, control_effectiveness, residual_ale, rosi,
+        osfi_ref
     ))
     conn.commit()
     conn.close()
@@ -142,8 +195,9 @@ def get_latest_scenario_run():
     """Returns the most recent result for each scenario key."""
     conn = get_connection()
     rows = conn.execute("""
-        SELECT scenario_key, scenario_name, ale, percentile_90,
-               prob_over_1m, prob_over_5m, control_cost, date_run
+        SELECT scenario_key, scenario_name, ale, median, percentile_90,
+               percentile_95, prob_over_1m, prob_over_5m, control_cost,
+               control_effectiveness, residual_ale, rosi, date_run, osfi_ref
         FROM risk_scenarios
         WHERE id IN (
             SELECT MAX(id) FROM risk_scenarios
@@ -244,13 +298,27 @@ def get_vendor_assessment_detail(assessment_id):
     return header, responses
 
 
+def get_reassessment_days():
+    """
+    Returns {tier: days} from RISK_TIERS — the reassessment cycle per tier.
+
+    Imported lazily so db_manager stays importable on its own (the vendor_risk
+    package is the one that owns the tier definitions).
+    """
+    from src.vendor_risk.questionnaire_data import RISK_TIERS
+    return {tier: info["reassessment_days"] for tier, info in RISK_TIERS.items()}
+
+
 def get_overdue_vendors():
     """
-    Returns vendors overdue for reassessment based on OSFI B-10 timelines:
-    Critical/High → annual (365 days)
-    Medium → annual (365 days)
-    Low → biennial (730 days)
+    Returns vendors overdue for reassessment, latest assessment per vendor.
+
+    The window per tier comes from RISK_TIERS["<tier>"]["reassessment_days"],
+    which reflects the OSFI B-10 expectation that monitoring is proportionate
+    to the criticality of the arrangement: Critical and High quarterly, Medium
+    annually, Low biennially.
     """
+    windows = get_reassessment_days()
     conn = get_connection()
     rows = conn.execute("""
         SELECT vendor_name, service_type, risk_tier,
@@ -261,17 +329,14 @@ def get_overdue_vendors():
             SELECT MAX(id) FROM vendor_assessments
             GROUP BY vendor_name
         )
-        AND (
-            (risk_tier IN ('Critical', 'High', 'Medium') AND
-             julianday('now') - julianday(assessment_date) > 365)
-            OR
-            (risk_tier = 'Low' AND
-             julianday('now') - julianday(assessment_date) > 730)
-        )
         ORDER BY days_since DESC
     """).fetchall()
     conn.close()
-    return rows
+    return [
+        r for r in rows
+        if r["days_since"] is not None
+        and r["days_since"] > windows.get(r["risk_tier"], 365)
+    ]
 
 
 def get_vendor_tier_summary():

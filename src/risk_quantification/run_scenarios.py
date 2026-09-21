@@ -9,7 +9,13 @@ from colorama import Fore, Style, init
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from src.risk_quantification.fair_engine import run_fair_simulation, format_currency
+from src.risk_quantification.fair_engine import (
+    run_fair_simulation,
+    compute_rosi,
+    format_currency,
+    seed_for,
+    N_SIMULATIONS,
+)
 from src.risk_quantification.scenarios import SCENARIOS
 from src.database.db_manager import initialise_database, get_connection
 
@@ -17,8 +23,11 @@ init(autoreset=True)
 
 
 def save_scenario_result(scenario_key, scenario, result):
-    """Saves a scenario result using the central db_manager."""
+    """Saves a scenario result — including the ROSI figures — via db_manager."""
     from src.database.db_manager import save_risk_scenario
+    economics = compute_rosi(
+        result["ale"], scenario["control_cost"], scenario["control_effectiveness"]
+    )
     save_risk_scenario(
         scenario_key  = scenario_key,
         scenario_name = scenario["name"],
@@ -34,6 +43,9 @@ def save_scenario_result(scenario_key, scenario, result):
         prob_over_5m  = result["prob_over_5m"],
         control_cost  = scenario.get("control_cost"),
         osfi_ref      = scenario["osfi_ref"],
+        control_effectiveness = scenario["control_effectiveness"],
+        residual_ale  = economics["residual_ale"],
+        rosi          = economics["rosi"],
     )
 
 
@@ -48,7 +60,7 @@ def print_scenario_result(scenario_key, scenario, result):
     print(f"  FAIR Inputs:")
     print(f"    Loss range  : {format_currency(scenario['loss_low'])} – {format_currency(scenario['loss_high'])} per event")
     print(f"    Frequency   : {scenario['freq_low']}–{scenario['freq_high']} attempts/year")
-    print(f"    Simulations : 100,000 Monte Carlo runs\n")
+    print(f"    Simulations : {N_SIMULATIONS:,} Monte Carlo runs (seed {seed_for(scenario['id'])})\n")
 
     # Results table
     table = [
@@ -61,16 +73,19 @@ def print_scenario_result(scenario_key, scenario, result):
     ]
     print(tabulate(table, tablefmt="rounded_outline"))
 
-    # ROI of controls
-    ale         = result["ale"]
+    # Return on Security Investment (ROSI)
+    ale          = result["ale"]
     control_cost = scenario["control_cost"]
-    roi         = ((ale - control_cost) / ale) * 100 if ale > 0 else 0
+    effectiveness = scenario["control_effectiveness"]
+    econ         = compute_rosi(ale, control_cost, effectiveness)
 
-    print(f"\n  {Fore.GREEN}Cost-Benefit Analysis:{Style.RESET_ALL}")
+    print(f"\n  {Fore.GREEN}Cost-Benefit Analysis (ROSI):{Style.RESET_ALL}")
     print(f"    Annual expected loss (no controls) : {format_currency(ale)}")
+    print(f"    Assumed control effectiveness      : {effectiveness:.0%} (assumption)")
+    print(f"    Residual ALE after controls        : {format_currency(econ['residual_ale'])}")
+    print(f"    Annual risk reduction              : {format_currency(econ['risk_reduction'])}")
     print(f"    Estimated control cost             : {format_currency(control_cost)}")
-    print(f"    Risk reduction value               : {format_currency(ale - control_cost)}")
-    print(f"    ROI of implementing controls       : {roi:.0f}%")
+    print(f"    ROSI                               : {econ['rosi_pct']:.0f}%")
 
     print(f"\n  Recommended Controls:")
     for ctrl in scenario["controls"]:
@@ -105,6 +120,7 @@ def run_scenarios(scenario_keys=None):
             loss_high = scenario["loss_high"],
             freq_low  = scenario["freq_low"],
             freq_high = scenario["freq_high"],
+            seed      = seed_for(scenario["id"]),
         )
         print("done.")
         save_scenario_result(key, scenario, result)
@@ -125,16 +141,22 @@ def run_scenarios(scenario_keys=None):
             if key in results:
                 r = results[key]
                 s = SCENARIOS[key]
+                econ = compute_rosi(
+                    r["ale"], s["control_cost"], s["control_effectiveness"]
+                )
                 summary.append([
                     s["name"],
                     format_currency(r["ale"]),
                     format_currency(r["percentile_90"]),
                     f"{r['prob_over_1m']:.0f}%",
                     format_currency(s["control_cost"]),
+                    format_currency(econ["residual_ale"]),
+                    f"{econ['rosi_pct']:.0f}%",
                 ])
         print(tabulate(
             summary,
-            headers=["Scenario", "ALE", "90th %ile", "P(>$1M)", "Control Cost"],
+            headers=["Scenario", "ALE", "90th %ile", "P(>$1M)",
+                     "Control Cost", "Residual ALE", "ROSI"],
             tablefmt="rounded_outline"
         ))
 

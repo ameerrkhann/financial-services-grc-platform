@@ -3,8 +3,8 @@
 
 **Author:** Ameer Mohammad Khan  
 **Tool:** Vendor Risk Assessor (Module 3)  
-**Regulation:** OSFI B-10 — Third-Party Risk Management  
-**Date:** March 2026  
+**Regulation:** OSFI B-10 — Third-Party Risk Management (revised 2023, effective May 1, 2024)  
+**Date:** September 2026  
 
 ---
 
@@ -37,7 +37,7 @@ for vendor risk management.
 - The assessment history table provides a board-ready view of the 
   organisation's overall third-party risk posture
 
-**B-10 Section:** s.3 — Governance
+**B-10 topic:** Governance and accountability for third-party risk
 
 ---
 
@@ -57,7 +57,7 @@ require more rigorous assessment.
 - Weighted scoring ensures high-importance controls (weight 3) 
   have greater influence on the final tier than lower-importance ones
 
-**B-10 Section:** s.4 — Due Diligence
+**B-10 topic:** Risk-based due diligence before entering an arrangement
 
 ---
 
@@ -76,7 +76,7 @@ risk level and apply controls proportionate to that classification.
 - The vendor portfolio dashboard shows tier distribution across 
   all assessed vendors at a glance
 
-**B-10 Section:** s.4 — Risk Classification
+**B-10 topic:** Risk and criticality assessment of third-party arrangements
 
 ---
 
@@ -89,7 +89,11 @@ and sub-contractor restrictions.
 **How this tool addresses it:**  
 The questionnaire directly assesses whether these contractual 
 requirements are in place:
-- **U03** — 24-hour breach notification clause
+- **U03** — 24-hour breach notification clause. This mirrors OSFI's own
+  *Technology and Cyber Security Incident Reporting* advisory timeline —
+  the FRFI must be able to report within 24 hours even when the incident
+  originates at a third party, which only works if the vendor is
+  contractually bound to notify quickly
 - **U13** — Sub-contractor (fourth-party) security requirements
 - **U14** — Right-to-audit clause in vendor contract
 - **U07** — Data encryption requirements (at rest and in transit)
@@ -98,7 +102,7 @@ requirements are in place:
 Gaps in these areas are flagged as Critical or High severity in 
 the gap report, signalling that the contract must be renegotiated.
 
-**B-10 Section:** s.5 — Contractual Protections
+**B-10 topic:** Contractual provisions in third-party agreements
 
 ---
 
@@ -112,13 +116,16 @@ based on their risk tier.
 - Every assessment is saved to the SQLite database with a timestamp, 
   creating a full historical record of vendor assessments over time
 - The `get_overdue_vendors()` database function flags vendors whose 
-  last assessment exceeds the B-10 timeline:
-  - Critical/High/Medium vendors: reassess within 365 days
+  last assessment exceeds the reassessment cycle for their tier. The cycle
+  is defined once, in `RISK_TIERS[...]["reassessment_days"]`, so the cycle
+  stated to the assessor is the cycle actually enforced:
+  - Critical and High vendors: reassess within 90 days
+  - Medium vendors: reassess within 365 days
   - Low vendors: reassess within 730 days
 - Multiple assessments for the same vendor build a trend — 
   scores improving or declining over time is visible in the history
 
-**B-10 Section:** s.6 — Ongoing Monitoring
+**B-10 topic:** Ongoing monitoring proportionate to risk and criticality
 
 ---
 
@@ -131,12 +138,12 @@ vendors' own sub-contractors — the fourth-party chain.
 - Question **U13** directly addresses fourth-party risk:  
   *"Does the vendor use sub-contractors with access to client data? 
   If yes, are they subject to equivalent security requirements?"*
-- This is a high-weight question (weight 2) — a "No" answer 
+- This is a mid-weight question (weight 2) — a "No" answer 
   results in significant score reduction
 - The gap report flags this as a High severity finding requiring 
   contractual remediation
 
-**B-10 Section:** s.6 — Fourth-Party Risk
+**B-10 topic:** Subcontracting and the extended supply chain
 
 ---
 
@@ -156,7 +163,7 @@ relationship ends unexpectedly.
 - Exit planning gaps are highlighted in the remediation guidance 
   with specific action steps
 
-**B-10 Section:** s.9 — Exit Planning
+**B-10 topic:** Termination and exit planning
 
 ---
 
@@ -177,7 +184,7 @@ The SQLite database stores a complete audit trail including:
 This record can be exported and presented to OSFI examiners or 
 internal auditors as evidence of B-10 compliance.
 
-**B-10 Section:** s.10 — Record Keeping
+**B-10 topic:** Records and reporting
 
 ---
 
@@ -227,6 +234,7 @@ B-13, and E-21 coverage reflects the real compliance obligations
 of federally regulated financial institutions where I have 
 professional experience (Manulife, Scotiabank).
 
-The September 2026 E-21 operational resilience deadline is 
-actively driving demand for exactly this kind of structured 
-vendor risk tooling at Canadian banks.
+OSFI E-21 full adherence was due September 1, 2026, and scenario testing
+across all critical operations is expected by September 1, 2027. Canadian
+FRFIs are actively building out that testing capability now, which is
+driving demand for exactly this kind of structured vendor risk tooling.

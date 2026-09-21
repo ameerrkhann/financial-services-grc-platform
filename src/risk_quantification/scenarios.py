@@ -1,6 +1,11 @@
 # src/risk_quantification/scenarios.py
 # FAIR scenario definitions for First National Bank (Fictional)
 # Parameters based on Canadian financial services threat landscape
+#
+# control_effectiveness is an ASSUMPTION, not a measurement: the share of the
+# annual expected loss the listed control set is judged to remove. Values sit
+# in the 0.60-0.80 band typical of a mature-but-imperfect control stack, and
+# feed the ROSI calculation in fair_engine.compute_rosi().
 
 SCENARIOS = {
     "data_breach": {
@@ -16,8 +21,9 @@ SCENARIOS = {
         "loss_high":   8_000_000,
         "freq_low":    0.5,
         "freq_high":   3.0,
-        "osfi_ref":    "OSFI B-13 s.5 — Cyber Incident Notification (24hr rule)",
-        "nist_ref":    "DE.CM-01, RS.RP-01",
+        "osfi_ref":    "OSFI Technology and Cyber Security Incident Reporting "
+                       "advisory — 24-hour notification of reportable incidents",
+        "nist_ref":    "DE.CM-01, PR.DS-01, RS.MA-01",
         "controls": [
             "Data Loss Prevention (DLP) tools",
             "Encryption of all PII at rest and in transit",
@@ -25,6 +31,7 @@ SCENARIOS = {
             "OSFI 24-hour breach notification process",
         ],
         "control_cost": 350_000,
+        "control_effectiveness": 0.70,   # assumption — see module docstring
     },
 
     "ransomware": {
@@ -39,8 +46,9 @@ SCENARIOS = {
         "loss_high":   12_000_000,
         "freq_low":    0.5,
         "freq_high":   2.0,
-        "osfi_ref":    "OSFI B-13 s.5 — Technology Incident Reporting",
-        "nist_ref":    "PR.AC-01, DE.CM-01, RC.RP-01",
+        "osfi_ref":    "OSFI B-13 — Technology Operations and Resilience; "
+                       "incident reporting per the OSFI incident reporting advisory",
+        "nist_ref":    "PR.AA-01, DE.CM-01, RC.RP-01",
         "controls": [
             "Immutable offline backups tested quarterly",
             "Network segmentation to limit lateral movement",
@@ -48,6 +56,7 @@ SCENARIOS = {
             "Incident response plan with ransomware-specific playbook",
         ],
         "control_cost": 500_000,
+        "control_effectiveness": 0.75,   # assumption — see module docstring
     },
 
     "insider_threat": {
@@ -64,8 +73,9 @@ SCENARIOS = {
         "loss_high":   5_000_000,   # large fraud or mass data theft
         "freq_low":    0.5,
         "freq_high":   2.0,
-        "osfi_ref":    "OSFI B-13 s.4 — Cyber Risk Governance & Access Controls",
-        "nist_ref":    "PR.AC-01, DE.AE-02, RS.RP-01",
+        "osfi_ref":    "OSFI B-13 — Cyber Security domain (identity and "
+                       "access management)",
+        "nist_ref":    "PR.AA-05, DE.AE-02, RS.MA-01",
         "controls": [
             "User and Entity Behaviour Analytics (UEBA)",
             "Least-privilege access with quarterly access reviews",
@@ -73,6 +83,7 @@ SCENARIOS = {
             "Offboarding procedure — immediate access revocation",
         ],
         "control_cost": 280_000,
+        "control_effectiveness": 0.65,   # assumption — see module docstring
     },
 
     "vendor_failure": {
@@ -98,6 +109,7 @@ SCENARIOS = {
             "Incident notification clauses requiring vendor to notify within 24 hours",
         ],
         "control_cost": 200_000,
+        "control_effectiveness": 0.60,   # assumption — see module docstring
     },
 
     "cloud_misconfiguration": {
@@ -115,7 +127,9 @@ SCENARIOS = {
         "loss_high":   6_000_000,
         "freq_low":    1.0,         # most frequent — happens at nearly every large org
         "freq_high":   4.0,
-        "osfi_ref":    "OSFI B-13 s.6 — Cloud and Technology Risk Management",
+        "osfi_ref":    "OSFI B-13 — Technology Operations and Resilience "
+                       "(cloud and technology risk), with B-10 third-party "
+                       "expectations for cloud providers",
         "nist_ref":    "PR.DS-01, ID.AM-01, DE.CM-01",
         "controls": [
             "Cloud Security Posture Management (CSPM) tool",
@@ -124,5 +138,6 @@ SCENARIOS = {
             "No public storage buckets policy enforced via cloud policy engine",
         ],
         "control_cost": 180_000,
+        "control_effectiveness": 0.80,   # assumption — see module docstring
     },
 }
