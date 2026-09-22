@@ -57,18 +57,18 @@ TODAY     = date.today()
 # NIST CSF 2.0 baseline assessment
 # ─────────────────────────────────────────────────────────────
 CSF_SCORES = {
-    "Govern":   (2, "Security policy exists but is three years old and was never "
-                    "re-approved. No documented risk appetite statement."),
-    "Identify": (2, "Asset inventory is a spreadsheet maintained by hand and is "
-                    "known to be incomplete for cloud workloads."),
-    "Protect":  (3, "MFA enforced on email and remote access, data encrypted at "
-                    "rest and in transit. Access reviews happen but are not evidenced."),
-    "Detect":   (2, "Logs are collected centrally but nobody owns alert triage. "
-                    "No defined thresholds and no measured time to detect."),
-    "Respond":  (1, "No documented incident response plan. The 24-hour OSFI "
-                    "reporting path has never been walked through."),
-    "Recover":  (3, "Backups tested quarterly and RTOs defined for the core "
-                    "banking platform. Wider BCP not exercised this year."),
+    "Govern":   (2, "Policy is three years old and was never re-approved. "
+                    "Risk appetite undocumented."),
+    "Identify": (2, "Asset inventory hand-maintained and incomplete for cloud. "
+                    "Risk assessment informal."),
+    "Protect":  (3, "MFA and encryption deployed. Access reviews run but are "
+                    "not evidenced."),
+    "Detect":   (2, "Logging centralised, but no alert ownership and no defined "
+                    "thresholds."),
+    "Respond":  (1, "No documented incident response plan. OSFI 24-hour "
+                    "reporting path never walked through."),
+    "Recover":  (3, "Backups tested quarterly. RTOs defined for core banking "
+                    "only; wider BCP not exercised."),
 }
 
 

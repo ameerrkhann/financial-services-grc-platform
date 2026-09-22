@@ -1,5 +1,5 @@
 # src/reporting/executive_summary.py
-# Builds docs/executive_summary.pdf — a 2-3 page briefing to the CISO.
+# Builds docs/executive_summary.pdf — a 4-page briefing to the CISO.
 #
 # Every figure in this document is read from the database. Nothing is typed in.
 # Run the seed and the chart generators first:
@@ -33,6 +33,7 @@ from reportlab.platypus import (
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from src.compliance.csf_data import CSF_FUNCTIONS, DEFAULT_TARGET_SCORE, GAP_METADATA
+from src.compliance.gap_analysis import build_roadmap
 from src.database.db_manager import (
     get_connection,
     get_latest_scenario_run,
@@ -42,23 +43,42 @@ from src.database.db_manager import (
     initialise_database,
 )
 from src.risk_quantification.fair_engine import format_currency
+from src.risk_quantification.loss_exceedance import SHORT_NAMES
 from src.risk_quantification.scenarios import SCENARIOS
 
-ROOT        = os.path.join(os.path.dirname(__file__), "../..")
-DOCS_DIR    = os.path.join(ROOT, "docs")
-CHARTS_DIR  = os.path.join(ROOT, "dashboards")
+ROOT       = os.path.join(os.path.dirname(__file__), "../..")
+DOCS_DIR   = os.path.join(ROOT, "docs")
+CHARTS_DIR = os.path.join(ROOT, "dashboards")
 os.makedirs(DOCS_DIR, exist_ok=True)
 OUTPUT_FILE = os.path.join(DOCS_DIR, "executive_summary.pdf")
 
-AUTHOR = "Ameer Khan — 4th Year CS @ University of Toronto"
+AUTHOR = "Ameer Khan"
+FOOTER = "First National Bank (Fictional) — simulated data for portfolio demonstration"
 
-# One accent colour, used for rules, headings and table headers.
-ACCENT     = colors.HexColor("#14607A")
-ACCENT_PALE = colors.HexColor("#E8F1F4")
+# One accent, plus a reserved status palette used only for ratings and tiers.
+ACCENT     = colors.HexColor("#1F4E79")
+ACCENT_MID = colors.HexColor("#2E6DA4")
 INK        = colors.HexColor("#1c1c1c")
-INK_MUTED  = colors.HexColor("#5a5a5a")
-RULE       = colors.HexColor("#c9d6db")
-ROW_ALT    = colors.HexColor("#f5f8f9")
+INK_MUTED  = colors.HexColor("#5f6b73")
+RULE       = colors.HexColor("#cdd8de")
+ROW_ALT    = colors.HexColor("#f4f7f9")
+TILE_BG    = colors.HexColor("#f1f5f8")
+
+# Compact service labels, so vendor rows stay on one line
+SERVICE_LABELS = {
+    "Data Analytics / AI": "Analytics / AI",
+    "Payment Processor":   "Payments",
+    "IT Infrastructure":   "Infrastructure",
+    "Software / SaaS":     "Software / SaaS",
+    "Cloud Provider":      "Cloud",
+}
+
+STATUS = {
+    "Critical": colors.HexColor("#b3261e"),
+    "High":     colors.HexColor("#c2620f"),
+    "Medium":   colors.HexColor("#8a6a0b"),
+    "Low":      colors.HexColor("#1d6f42"),
+}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -69,65 +89,75 @@ def build_styles():
     return {
         "title": ParagraphStyle(
             "title", parent=base["Title"], fontName="Helvetica-Bold",
-            fontSize=20, leading=24, textColor=ACCENT, alignment=TA_LEFT,
-            spaceAfter=2,
+            fontSize=23, leading=27, textColor=ACCENT, alignment=TA_LEFT,
+            spaceAfter=3,
         ),
-        "subtitle": ParagraphStyle(
-            "subtitle", parent=base["Normal"], fontName="Helvetica",
-            fontSize=10, leading=13, textColor=INK_MUTED, spaceAfter=8,
+        "byline": ParagraphStyle(
+            "byline", parent=base["Normal"], fontName="Helvetica",
+            fontSize=10.5, leading=14, textColor=INK_MUTED, spaceAfter=6,
         ),
         "h2": ParagraphStyle(
             "h2", parent=base["Heading2"], fontName="Helvetica-Bold",
-            fontSize=13, leading=16, textColor=ACCENT,
-            spaceBefore=12, spaceAfter=5, keepWithNext=1,
+            fontSize=13.5, leading=17, textColor=ACCENT,
+            spaceBefore=13, spaceAfter=5, keepWithNext=1,
+        ),
+        "h3": ParagraphStyle(
+            "h3", parent=base["Heading3"], fontName="Helvetica-Bold",
+            fontSize=10.5, leading=14, textColor=INK,
+            spaceBefore=7, spaceAfter=2, keepWithNext=1,
         ),
         "body": ParagraphStyle(
             "body", parent=base["Normal"], fontName="Helvetica",
-            fontSize=10.5, leading=14, textColor=INK, spaceAfter=6,
+            fontSize=10, leading=13.6, textColor=INK, spaceAfter=5,
+        ),
+        "small": ParagraphStyle(
+            "small", parent=base["Normal"], fontName="Helvetica",
+            fontSize=8.2, leading=11, textColor=INK_MUTED, spaceAfter=3,
+        ),
+        "refs": ParagraphStyle(
+            "refs", parent=base["Normal"], fontName="Helvetica",
+            fontSize=8, leading=10.5, textColor=ACCENT_MID, spaceAfter=2,
         ),
         "cell": ParagraphStyle(
             "cell", parent=base["Normal"], fontName="Helvetica",
-            fontSize=9, leading=11.5, textColor=INK,
+            fontSize=8.8, leading=11.4, textColor=INK,
         ),
         "cellhead": ParagraphStyle(
             "cellhead", parent=base["Normal"], fontName="Helvetica-Bold",
-            fontSize=9, leading=11.5, textColor=colors.white,
+            fontSize=8.8, leading=11.4, textColor=colors.white,
         ),
-        "caption": ParagraphStyle(
-            "caption", parent=base["Normal"], fontName="Helvetica-Oblique",
-            fontSize=8.5, leading=11, textColor=INK_MUTED, spaceAfter=4,
+        "kpi_value": ParagraphStyle(
+            "kpi_value", parent=base["Normal"], fontName="Helvetica-Bold",
+            fontSize=15, leading=18, textColor=ACCENT, spaceAfter=1,
         ),
-        "disclaimer": ParagraphStyle(
-            "disclaimer", parent=base["Normal"], fontName="Helvetica-Bold",
-            fontSize=9, leading=12, textColor=ACCENT,
+        "kpi_label": ParagraphStyle(
+            "kpi_label", parent=base["Normal"], fontName="Helvetica",
+            fontSize=7.4, leading=9.2, textColor=INK_MUTED,
         ),
     }
 
 
-def table(data, col_widths, styles, align=None, spans=None):
-    """
-    Builds a consistently styled table. First row is the header.
-
-    spans is a list of ((col, row), (col, row)) cell ranges to merge — used
-    so a wide paragraph can wrap across columns that are narrow elsewhere
-    in the same table.
-    """
+def table(data, col_widths, styles, align=None, spans=None, bold_last=False):
+    """Builds a consistently styled table. First row is the header."""
     header = [Paragraph(str(c), styles["cellhead"]) for c in data[0]]
     body   = [[Paragraph(str(c), styles["cell"]) for c in row] for row in data[1:]]
 
     t = TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, 0), ACCENT),
+        ("BACKGROUND",    (0, 0), (-1, 0), ACCENT_MID),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING",    (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("LEFTPADDING",   (0, 0), (-1, -1), 6),
         ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
         ("LINEBELOW",     (0, 0), (-1, -2), 0.4, RULE),
-        ("BOX",           (0, 0), (-1, -1), 0.6, RULE),
+        ("BOX",           (0, 0), (-1, -1), 0.5, RULE),
     ])
     for i in range(1, len(data)):
         if i % 2 == 0:
             t.add("BACKGROUND", (0, i), (-1, i), ROW_ALT)
+    if bold_last:
+        t.add("BACKGROUND", (0, len(data) - 1), (-1, len(data) - 1),
+              colors.HexColor("#e6edf2"))
     for col in (align or []):
         t.add("ALIGN", (col, 1), (col, -1), "RIGHT")
     for start, end in (spans or []):
@@ -143,15 +173,48 @@ def chart(path, width, styles, caption=None):
     if not os.path.exists(path):
         return Paragraph(
             f"<i>Chart not found: {os.path.basename(path)} — "
-            f"run the chart generators first.</i>", styles["caption"]
+            f"run the chart generators first.</i>", styles["small"]
         )
     img = Image(path)
     img.drawHeight = img.drawHeight * (width / img.drawWidth)
     img.drawWidth  = width
     img.hAlign     = "CENTER"
     if caption:
-        return KeepTogether([img, Spacer(1, 3), Paragraph(caption, styles["caption"])])
+        return KeepTogether([img, Spacer(1, 3),
+                             Paragraph(caption, styles["small"])])
     return img
+
+
+def kpi_strip(tiles, styles, total_width):
+    """The five headline numbers as a row of tiles. tiles = (value, label, colour)."""
+    row = []
+    for value, label, colour in tiles:
+        cell = Table(
+            [[Paragraph(f'<font color="{colour.hexval()}">{value}</font>',
+                        styles["kpi_value"])],
+             [Paragraph(label, styles["kpi_label"])]],
+            colWidths=[total_width / len(tiles) - 0.04 * inch],
+            style=TableStyle([
+                ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
+                ("TOPPADDING",    (0, 0), (-1, 0), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 0),
+                ("TOPPADDING",    (0, 1), (-1, 1), 0),
+                ("BOTTOMPADDING", (0, 1), (-1, 1), 7),
+            ]))
+        row.append(cell)
+
+    outer = Table([row], colWidths=[total_width / len(tiles)] * len(tiles))
+    outer.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), TILE_BG),
+        ("INNERGRID",     (0, 0), (-1, -1), 2.5, colors.white),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+        ("TOPPADDING",    (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return outer
 
 
 # ─────────────────────────────────────────────────────────────
@@ -191,23 +254,31 @@ def gather_data():
             "  No risk scenarios found. Run src/database/seed_demo_data.py first."
         )
 
-    by_name  = {r["function_name"]: r for r in csf_rows}
-    csf      = [
-        (f, by_name[f]["score"], by_name[f]["target_score"] or DEFAULT_TARGET_SCORE)
+    by_name = {r["function_name"]: r for r in csf_rows}
+    csf = [
+        (f, by_name[f]["score"], by_name[f]["target_score"] or DEFAULT_TARGET_SCORE,
+         by_name[f]["rationale"] or "")
         for f in CSF_FUNCTIONS if f in by_name
     ]
 
     return {
-        "org":        assessment["org_name"],
-        "assessor":   assessment["assessor"],
-        "date_run":   assessment["date_run"],
-        "csf":        csf,
-        "scenarios":  scenarios,
-        "vendors":    vendors,
-        "tiers":      {r["risk_tier"]: r["count"] for r in get_vendor_tier_summary()},
-        "overdue":    get_overdue_vendors(),
-        "windows":    get_reassessment_days(),
+        "org":       assessment["org_name"],
+        "assessor":  assessment["assessor"],
+        "date_run":  assessment["date_run"],
+        "csf":       csf,
+        "roadmap":   build_roadmap(assessment["id"]),
+        "scenarios": scenarios,
+        "vendors":   vendors,
+        "tiers":     {r["risk_tier"]: r["count"] for r in get_vendor_tier_summary()},
+        "overdue":   get_overdue_vendors(),
+        "windows":   get_reassessment_days(),
     }
+
+
+def scenario_label(name):
+    """Compact scenario name, shared with the charts."""
+    key = next((k for k, s in SCENARIOS.items() if s["name"] == name), None)
+    return SHORT_NAMES.get(key, name.split(" — ")[0])
 
 
 def derive_recommendations(d):
@@ -216,8 +287,8 @@ def derive_recommendations(d):
 
     1. The controls for the highest-ALE scenario.
     2. The remediation for the lowest-scoring CSF function. Its expected effect
-       is the combined ALE of the scenarios that cite that function's control
-       ID, since a CSF gap has no control cost of its own.
+       is the combined ALE of the scenarios citing that function's control ID,
+       since a maturity gap has no control cost of its own.
     3. The Critical-tier and overdue vendors, priced against the third-party
        scenario's own control set.
     """
@@ -226,46 +297,61 @@ def derive_recommendations(d):
     # ── 1. Highest-ALE scenario ──────────────────────────────
     top = max(d["scenarios"], key=lambda r: r["ale"])
     key = next(k for k, s in SCENARIOS.items() if s["name"] == top["scenario_name"])
+    sc  = SCENARIOS[key]
     recs.append({
-        "title":  f"Fund the {top['scenario_name']} control set",
-        "why":    (
-            f"Largest single exposure in the portfolio: "
-            f"{format_currency(top['ale'])} expected annual loss, "
-            f"{format_currency(top['percentile_90'])} in a 1-in-10 year."
+        "title":    scenario_label(top["scenario_name"]),
+        "priority": "Critical",
+        "effort":   f"{format_currency(top['control_cost'])}/yr programme",
+        "why": (
+            f"The largest single exposure in the portfolio at "
+            f"{format_currency(top['ale'])} expected annual loss, with a "
+            f"one-in-ten-year loss of {format_currency(top['percentile_90'])}."
         ),
-        "what":   "; ".join(SCENARIOS[key]["controls"][:3]) + ".",
-        "cost":   f"{format_currency(top['control_cost'])}/yr",
+        "action":    "; ".join(sc["controls"][:3]) + ".",
+        "quick_win": (
+            f"Confirm the {format_currency(top['control_cost'])} sits in next "
+            f"year's budget line before the planning cycle closes."
+        ),
         "effect": (
             f"{format_currency(top['ale'] - top['residual_ale'])}/yr reduction at "
             f"{top['control_effectiveness']:.0%} assumed effectiveness, leaving "
             f"{format_currency(top['residual_ale'])} residual. "
-            f"ROSI {top['rosi'] * 100:.0f}%."
+            f"ROSI {top['rosi'] * 100:,.0f}%."
         ),
+        "refs": f"NIST CSF {sc['nist_ref']}  ·  {sc['osfi_ref'].split(';')[0]}",
     })
 
     # ── 2. Lowest-scoring CSF function ───────────────────────
-    func, score, target = min(d["csf"], key=lambda r: r[1])
+    func, score, target, _ = min(d["csf"], key=lambda r: r[1])
     meta  = GAP_METADATA[func]
     cited = [
         r for r in d["scenarios"]
         if meta["nist_ref"] in next(
-            (sc["nist_ref"] for sc in SCENARIOS.values()
-             if sc["name"] == r["scenario_name"]), ""
+            (s["nist_ref"] for s in SCENARIOS.values()
+             if s["name"] == r["scenario_name"]), ""
         )
     ]
     cited_ale = sum(r["ale"] for r in cited)
     recs.append({
-        "title":  f"Close the {func} gap — {score}/5 against a target of {target}/5",
-        "why":    (
-            f"The weakest function. {meta['nist_ref']} is cited by {len(cited)} of "
-            f"the {len(d['scenarios'])} modelled scenarios, carrying "
-            f"{format_currency(cited_ale)} of combined annual expected loss."
+        "title":    func,
+        "priority": meta["priority"],
+        "effort":   f"{meta['effort'].lower()} effort, about {meta['effort_weeks']} weeks",
+        "why": (
+            f"{meta['business_impact']} {meta['nist_ref']} is cited by "
+            f"{len(cited)} of the {len(d['scenarios'])} modelled scenarios, "
+            f"which carry {format_currency(cited_ale)} of combined annual "
+            f"expected loss."
         ),
-        "what":   meta["remediation"],
-        "cost":   f"~{meta['effort_weeks']} weeks of analyst effort; no new tooling",
+        "action":    meta["remediation"],
+        "quick_win": meta["quick_win"],
         "effect": (
-            f"Raises the weakest function to the defined level and supports the "
-            f"{format_currency(cited_ale)} of ALE that depends on it."
+            f"Raises the weakest function from {score}/5 towards the target of "
+            f"{target}/5 and supports the {format_currency(cited_ale)} of ALE "
+            f"that depends on it. No new tooling required."
+        ),
+        "refs": (
+            f"NIST CSF {meta['nist_ref']}  ·  ISO 27001 {meta['iso_ref']}  ·  "
+            f"SOC 2 {meta['soc2_ref']}"
         ),
     })
 
@@ -274,20 +360,27 @@ def derive_recommendations(d):
     overdue  = [r["vendor_name"] for r in d["overdue"]]
     vs = next((r for r in d["scenarios"] if r["scenario_key"] == "vendor_failure"), None)
     recs.append({
-        "title":  "Remediate the Critical-tier vendor and clear the reassessment backlog",
-        "why":    (
+        "title":    "Third-party risk",
+        "priority": "High",
+        "effort":   "about 90 days to clear the backlog",
+        "why": (
             f"{len(critical)} vendor sits in the Critical tier "
-            f"({', '.join(v['vendor_name'] for v in critical)}) and {len(overdue)} are "
-            f"past the reassessment window for their tier. OSFI B-10 expects "
-            f"monitoring proportionate to criticality."
+            f"({', '.join(v['vendor_name'] for v in critical)}) and "
+            f"{len(overdue)} are past the reassessment window for their tier "
+            f"({', '.join(overdue)}). OSFI B-10 expects monitoring "
+            f"proportionate to criticality."
         ),
-        "what":   "; ".join(SCENARIOS["vendor_failure"]["controls"][:2]) + ".",
-        "cost":   f"{format_currency(vs['control_cost'])}/yr" if vs else "n/a",
+        "action":    "; ".join(SCENARIOS["vendor_failure"]["controls"][:3]) + ".",
+        "quick_win": (
+            "Re-run the questionnaire for the overdue vendors before any "
+            "contract renewal is signed."
+        ),
         "effect": (
-            f"{format_currency(vs['ale'] - vs['residual_ale'])}/yr reduction against "
-            f"the {format_currency(vs['ale'])} third-party scenario. "
-            f"ROSI {vs['rosi'] * 100:.0f}%." if vs else ""
+            f"{format_currency(vs['ale'] - vs['residual_ale'])}/yr reduction "
+            f"against the {format_currency(vs['ale'])} third-party scenario. "
+            f"ROSI {vs['rosi'] * 100:,.0f}%." if vs else ""
         ),
+        "refs": "OSFI B-10 — Third-Party Risk Management  ·  NIST CSF GV.SC-07",
     })
     return recs
 
@@ -295,218 +388,221 @@ def derive_recommendations(d):
 # ─────────────────────────────────────────────────────────────
 # Document
 # ─────────────────────────────────────────────────────────────
-def build_story(d, s):
+def build_story(d, s, width):
     story     = []
     total_ale = sum(r["ale"] for r in d["scenarios"])
     total_res = sum(r["residual_ale"] for r in d["scenarios"])
     total_cc  = sum(r["control_cost"] or 0 for r in d["scenarios"])
-    overall   = sum(c for _, c, _ in d["csf"]) / len(d["csf"])
-    avg_tgt   = sum(t for _, _, t in d["csf"]) / len(d["csf"])
+    overall   = sum(c for _, c, _, _ in d["csf"]) / len(d["csf"])
+    avg_tgt   = sum(t for _, _, t, _ in d["csf"]) / len(d["csf"])
+    top       = max(d["scenarios"], key=lambda r: r["ale"])
+    worst     = min(d["csf"], key=lambda r: r[1])
 
-    # ── 1. Header ────────────────────────────────────────────
-    story.append(Paragraph("Cyber Risk Executive Briefing", s["title"]))
+    # ── Header ───────────────────────────────────────────────
+    story.append(Paragraph("Cyber Risk Executive Summary", s["title"]))
     story.append(Paragraph(
-        f"{d['org']} &nbsp;|&nbsp; Prepared for the Chief Information Security "
-        f"Officer &nbsp;|&nbsp; {AUTHOR}", s["subtitle"]))
-    story.append(table(
-        [["Assessment date", "Issued", "Basis"],
-         [d["date_run"], date.today().isoformat(),
-          "NIST CSF 2.0 · FAIR · OSFI B-10 / B-13 / E-21"]],
-        [1.3 * inch, 1.3 * inch, 4.1 * inch], s,
-    ))
-    story.append(Spacer(1, 8))
-    story.append(Table(
-        [[Paragraph(
-            "Simulated organisation — illustrative data. First National Bank "
-            "(Fictional) is not a real institution; every figure is modelled.",
-            s["disclaimer"])]],
-        colWidths=[6.7 * inch],
-        style=TableStyle([
-            ("BACKGROUND",  (0, 0), (-1, -1), ACCENT_PALE),
-            ("BOX",         (0, 0), (-1, -1), 0.6, ACCENT),
-            ("TOPPADDING",  (0, 0), (-1, -1), 7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ("LEFTPADDING", (0, 0), (-1, -1), 9),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
-        ])))
+        f"{d['org']} &nbsp;·&nbsp; Prepared by {AUTHOR} &nbsp;·&nbsp; "
+        f"{date.today().isoformat()}", s["byline"]))
+    story.append(Table([[""]], colWidths=[width], rowHeights=[2],
+                       style=TableStyle([("BACKGROUND", (0, 0), (-1, -1), ACCENT)])))
+    story.append(Spacer(1, 9))
 
-    # ── 2. Executive Overview ────────────────────────────────
+    story.append(Paragraph(
+        "<b>Simulated organisation.</b> First National Bank is fictional and every "
+        "figure illustrative. This demonstrates analytical method and reporting "
+        "format, not an assessment of any real institution.", s["small"]))
+    story.append(Spacer(1, 9))
+
+    # ── KPI strip ────────────────────────────────────────────
+    story.append(kpi_strip([
+        (format_currency(total_ale), "Total annualised loss expectancy",
+         STATUS["Critical"]),
+        (format_currency(total_res), "Residual after controls", ACCENT),
+        (f"{overall:.1f} / 5.0", "NIST CSF maturity", STATUS["Medium"]),
+        (str(len(d["vendors"])), "Vendors assessed", ACCENT),
+        (str(len(d["overdue"])), "Overdue reassessments",
+         STATUS["Critical"] if d["overdue"] else STATUS["Low"]),
+    ], s, width))
+    story.append(Spacer(1, 4))
+
+    # ── Executive Overview ───────────────────────────────────
     story.append(Paragraph("Executive Overview", s["h2"]))
-    worst_func, worst_score, worst_target = min(d["csf"], key=lambda r: r[1])
     story.append(Paragraph(
-        f"Across five modelled threat scenarios the bank carries "
-        f"<b>{format_currency(total_ale)} in expected annual cyber loss</b>. The "
-        f"control programme costed here runs at {format_currency(total_cc)} a year "
-        f"and would leave {format_currency(total_res)} of residual expected loss — "
-        f"a {format_currency(total_ale - total_res)} reduction, or "
-        f"{(total_ale - total_res) / total_ale:.0%}.", s["body"]))
+        f"Across five modelled threat scenarios, {d['org']} carries an expected "
+        f"annual cyber loss of <b>{format_currency(total_ale)}</b>. The largest "
+        f"single exposure is {scenario_label(top['scenario_name'])} at "
+        f"{format_currency(top['ale'])} a year, with a one-in-ten-year loss of "
+        f"{format_currency(top['percentile_90'])}. A programme costing "
+        f"<b>{format_currency(total_cc)} annually</b> would remove "
+        f"{format_currency(total_ale - total_res)} of that exposure, leaving "
+        f"{format_currency(total_res)} residual.", s["body"]))
     story.append(Paragraph(
-        f"Maturity is the constraint, not budget: <b>{overall:.1f} of 5.0</b> against "
-        f"a target of {avg_tgt:.1f}, with {sum(1 for _, c, _ in d['csf'] if c < 3)} of "
-        f"{len(d['csf'])} functions below the defined level and {worst_func} weakest at "
-        f"{worst_score}/5. Of {len(d['vendors'])} vendors, "
-        f"{d['tiers'].get('Critical', 0)} is Critical-tier and {len(d['overdue'])} are "
-        f"past their reassessment window — a B-10 gap fixable this quarter without "
-        f"new spend.", s["body"]))
+        f"Control maturity is the constraint: <b>{overall:.1f} of 5.0</b> against "
+        f"NIST CSF 2.0, versus a target of {avg_tgt:.0f}, with <b>{worst[0]}</b> "
+        f"weakest at {worst[1]}/5. {len(d['roadmap'])} control gaps are open and "
+        f"{len(d['overdue'])} of {len(d['vendors'])} vendors are past their OSFI "
+        f"B-10 reassessment date. Governance and incident response are where low "
+        f"cost meets high consequence.", s["body"]))
 
-    # ── 3. Key Risk Findings ─────────────────────────────────
-    story.append(Paragraph("Key Risk Findings", s["h2"]))
-    rows = [["Scenario", "ALE", "90th %ile", "Control cost",
-             "Residual ALE", "ROSI"]]
+    # ── 1. Quantified Risk Exposure ──────────────────────────
+    story.append(Paragraph("1. Quantified Risk Exposure", s["h2"]))
+    story.append(Paragraph(
+        "Each scenario is modelled with the FAIR method: annual event frequency "
+        "drawn from a Poisson distribution, single-event loss from a log-normal "
+        "fitted to a low/high range, summed across 100,000 simulated years.",
+        s["body"]))
+
+    rows = [["Scenario", "Expected annual loss", "1-in-10 yr",
+             "Control cost", "Residual ALE", "ROSI"]]
     for r in sorted(d["scenarios"], key=lambda r: r["ale"], reverse=True):
         rows.append([
-            r["scenario_name"].split(" — ")[0],
+            f"<b>{scenario_label(r['scenario_name'])}</b>",
             format_currency(r["ale"]),
             format_currency(r["percentile_90"]),
             format_currency(r["control_cost"] or 0),
             format_currency(r["residual_ale"]),
-            f"{r['rosi'] * 100:.0f}%",
+            f"{r['rosi'] * 100:,.0f}%",
         ])
-    rows.append(["<b>Portfolio total</b>",
-                 f"<b>{format_currency(total_ale)}</b>", "—",
-                 f"<b>{format_currency(total_cc)}</b>",
-                 f"<b>{format_currency(total_res)}</b>",
-                 f"<b>{(total_ale - total_res - total_cc) / total_cc * 100:.0f}%</b>"])
+    rows.append(["<b>Portfolio total</b>", f"<b>{format_currency(total_ale)}</b>",
+                 "—", f"<b>{format_currency(total_cc)}</b>",
+                 f"<b>{format_currency(total_res)}</b>", "—"])
     story.append(table(
         rows,
-        [2.2 * inch, 0.85 * inch, 0.9 * inch, 0.95 * inch, 0.95 * inch, 0.85 * inch],
-        s, align=[1, 2, 3, 4, 5]))
-    story.append(Spacer(1, 4))
+        [1.25 * inch, 1.42 * inch, 0.92 * inch, 0.9 * inch, 0.92 * inch, 0.72 * inch],
+        s, bold_last=True))
+    story.append(Spacer(1, 3))
     story.append(Paragraph(
-        "ALE is the mean of 100,000 simulated years. Residual ALE and ROSI rest on "
-        "a 60–80% control-effectiveness assumption per scenario.", s["caption"]))
-
-    story.append(Spacer(1, 8))
+        "ROSI = (risk reduced − control cost) ÷ control cost. Effectiveness is "
+        "assumed at 60–80% by scenario, not measured, and costs cover tooling "
+        "only — so ROSI is an upper bound.", s["small"]))
+    story.append(Spacer(1, 6))
     story.append(chart(
         os.path.join(CHARTS_DIR, "lec_all_scenarios.png"), 4.2 * inch, s,
-        "Loss exceedance curves — the probability that annual loss exceeds any "
-        "given dollar amount, per scenario."))
+        "Loss exceedance curves. Read the curve at any dollar figure to get the "
+        "probability that annual losses exceed it."))
 
-    # ── 4. NIST CSF Maturity ─────────────────────────────────
-    story.append(Paragraph("NIST CSF 2.0 Maturity", s["h2"]))
-    story.append(Paragraph(
-        f"Overall maturity is <b>{overall:.1f} / 5.0</b> against a target of "
-        f"{avg_tgt:.1f} — an average gap of {avg_tgt - overall:.1f} levels. "
-        f"A score of 3 means documented and consistently followed; 4 means "
-        f"measured and tracked with metrics.", s["body"]))
-
-    csf_rows = [["Function", "Current", "Target", "Gap", "Status"]]
-    for func, score, target in d["csf"]:
+    # ── 2. Control Maturity ──────────────────────────────────
+    story.append(Paragraph("2. Control Maturity — NIST CSF 2.0", s["h2"]))
+    csf_rows = [["Function", "Current", "Target", "Gap", "Assessment"]]
+    for func, score, target, rationale in d["csf"]:
+        band = "Critical" if score <= 1 else "High" if score == 2 else "Low"
         csf_rows.append([
-            func, f"{score}/5", f"{target}/5", str(max(target - score, 0)),
-            "Gap — below defined" if score < 3 else "At or above defined",
+            f"<b>{func}</b>",
+            f'<font color="{STATUS[band].hexval()}"><b>{score}</b></font>',
+            str(target),
+            f"+{target - score}",
+            rationale,
         ])
     story.append(table(
         csf_rows,
-        [1.5 * inch, 0.85 * inch, 0.85 * inch, 0.6 * inch, 2.9 * inch],
+        [0.88 * inch, 0.72 * inch, 0.55 * inch, 0.45 * inch, 3.65 * inch],
         s, align=[1, 2, 3]))
-
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
     story.append(chart(
-        os.path.join(CHARTS_DIR, "csf_radar.png"), 2.5 * inch, s,
-        "Current maturity against the target of 4 across all six functions."))
+        os.path.join(CHARTS_DIR, "csf_radar.png"), 2.7 * inch, s,
+        "Current maturity against a target of 4 (managed and measured) across "
+        "all six functions."))
 
-    # ── 5. Top 3 Recommendations ─────────────────────────────
-    story.append(Paragraph("Top Three Recommendations", s["h2"]))
+    # ── 3. Recommended Actions ───────────────────────────────
+    # Derived from the data: largest quantified exposure, weakest control
+    # function, and the third-party backlog.
+    # keepWithNext cannot hold a heading to a KeepTogether block, so the
+    # heading is bound into the first recommendation instead.
     for i, rec in enumerate(derive_recommendations(d), 1):
-        story.append(KeepTogether([
-            table(
-                [[f"{i}. {rec['title']}", "", ""],
-                 ["Why", rec["why"], ""],
-                 ["Action", rec["what"], ""],
-                 ["Cost", rec["cost"], f"<b>Effect</b> — {rec['effect']}"]],
-                [0.78 * inch, 2.25 * inch, 3.67 * inch], s,
-                spans=[((0, 0), (2, 0)), ((1, 1), (2, 1)), ((1, 2), (2, 2))]),
-            Spacer(1, 8),
+        colour = STATUS.get(rec["priority"], ACCENT).hexval()
+        heading = [Paragraph("3. Recommended Actions", s["h2"])] if i == 1 else []
+        story.append(KeepTogether(heading + [
+            Paragraph(
+                f"{i}. {rec['title']} — "
+                f'<font color="{colour}">{rec["priority"]}</font> '
+                f"<font color='#5f6b73'>({rec['effort']})</font>", s["h3"]),
+            Paragraph(f"{rec['why']} <b>{rec['effect']}</b>", s["body"]),
+            Paragraph(f"<b>Action:</b> {rec['action']}", s["body"]),
+            Paragraph(f"<b>Start this month:</b> {rec['quick_win']}", s["body"]),
+            Paragraph(rec["refs"], s["refs"]),
         ]))
+        story.append(Spacer(1, 2))
 
-    # ── 6. OSFI Alignment ────────────────────────────────────
-    story.append(Paragraph("OSFI Alignment Summary", s["h2"]))
-    story.append(table([
-        ["Guideline / advisory", "Status and key date", "How this programme responds"],
-        ["B-13 — Technology and Cyber Risk Management",
-         "Effective 1 Jan 2024. Domains: Governance and Risk Management; "
-         "Technology Operations and Resilience; Cyber Security.",
-         "CSF maturity scoring evidences control validation; the FAIR engine "
-         "is the repeatable risk assessment."],
-        ["B-10 — Third-Party Risk Management",
-         "Revised 2023, effective 1 May 2024.",
-         f"Vendor questionnaire, tiering and audit trail. The "
-         f"{len(d['overdue'])} overdue reassessments are the open item."],
-        ["E-21 — Operational Risk and Resilience Management",
-         "Full adherence expected by 1 Sep 2026. Scenario testing of all critical "
-         "operations expected by 1 Sep 2027.",
-         "Recover scoring and the modelled severe scenarios start that testing "
-         "programme."],
-        ["Technology and Cyber Security Incident Reporting advisory",
-         "Reportable incidents reported to OSFI within 24 hours.",
-         f"The {worst_func} gap is the direct exposure: the 24-hour reporting "
-         "path is undocumented and untested."],
-    ], [1.45 * inch, 2.3 * inch, 2.95 * inch], s))
-
-    # ── 7. Vendor Risk Snapshot ──────────────────────────────
-    vendor_block = [Paragraph("Vendor Risk Snapshot", s["h2"])]
-    tier_rows = [["Tier", "Vendors", "Reassessment cycle", "Action required"]]
-    tier_actions = {
-        "Critical": "No onboarding or renewal without a remediation plan. Executive approval required.",
-        "High":     "Retain with conditions; quarterly reassessment.",
-        "Medium":   "Standard monitoring; annual reassessment.",
-        "Low":      "Approved; biennial reassessment.",
-    }
-    for tier in ("Critical", "High", "Medium", "Low"):
-        tier_rows.append([
-            tier, str(d["tiers"].get(tier, 0)),
-            f"{d['windows'][tier]} days", tier_actions[tier],
+    # ── 4. Third-Party Risk Snapshot ─────────────────────────
+    tier_counts = ", ".join(
+        f"{d['tiers'].get(t, 0)} {t.lower()}"
+        for t in ("Critical", "High", "Medium", "Low")
+    )
+    overdue_names = {r["vendor_name"] for r in d["overdue"]}
+    v_rows = [["Vendor", "Service", "Tier", "Score", "Crit. gaps",
+               "Reassessment"]]
+    for v in d["vendors"]:
+        due = ("<font color='#b3261e'><b>OVERDUE</b></font>"
+               if v["vendor_name"] in overdue_names
+               else f"in {d['windows'][v['risk_tier']] - v['days_since']}d")
+        v_rows.append([
+            f"<b>{v['vendor_name']}</b>",
+            SERVICE_LABELS.get(v["service_type"], v["service_type"]),
+            f'<font color="{STATUS[v["risk_tier"]].hexval()}">'
+            f'<b>{v["risk_tier"]}</b></font>',
+            str(v["score"]),
+            str(v["critical_gaps"]),
+            due,
         ])
-    vendor_block.append(table(
-        tier_rows,
-        [0.8 * inch, 0.78 * inch, 1.12 * inch, 4.0 * inch], s, align=[1]))
+    story.append(KeepTogether([
+        Paragraph("4. Third-Party Risk Snapshot", s["h2"]),
+        Paragraph(
+            f"{len(d['vendors'])} vendors assessed against an OSFI B-10 aligned "
+            f"questionnaire: {tier_counts} tier. <b>{len(d['overdue'])} are past "
+            f"their reassessment date.</b>", s["body"]),
+        table(v_rows,
+              [2.0 * inch, 1.2 * inch, 0.7 * inch, 0.55 * inch, 0.7 * inch,
+               1.15 * inch], s, align=[3, 4]),
+    ]))
 
-    vendor_block.append(Spacer(1, 6))
-    if d["overdue"]:
-        vendor_block.append(Paragraph(
-            f"<b>{len(d['overdue'])} vendors are overdue for reassessment.</b>",
-            s["body"]))
-        od_rows = [["Vendor", "Tier", "Days since assessment", "Window"]]
-        for r in d["overdue"]:
-            od_rows.append([
-                r["vendor_name"], r["risk_tier"], str(r["days_since"]),
-                f"{d['windows'][r['risk_tier']]} days",
-            ])
-        vendor_block.append(table(
-            od_rows,
-            [2.9 * inch, 1.0 * inch, 1.6 * inch, 1.2 * inch], s, align=[2, 3]))
-    else:
-        vendor_block.append(Paragraph(
-            "No vendors are currently overdue for reassessment.", s["body"]))
+    # ── 5. OSFI Alignment ────────────────────────────────────
+    story.append(KeepTogether([
+        Paragraph("5. OSFI Alignment", s["h2"]),
+        table([
+            ["Guideline", "Scope", "Status in this assessment"],
+            ["<b>B-13</b> <font color='#5f6b73'>(in force Jan 2024)</font>",
+             "Technology and cyber risk management",
+             "Governance and detection gaps open; reporting path undefined"],
+            ["<b>B-10</b> <font color='#5f6b73'>(in force May 2024)</font>",
+             "Third-party risk management",
+             f"Vendor tiering operating; {len(d['overdue'])} reassessments overdue"],
+            ["<b>E-21</b> <font color='#5f6b73'>(full adherence Sep 2026)</font>",
+             "Operational risk and resilience",
+             "Recovery tested; scenario testing of all critical operations due Sep 2027"],
+            ["<b>Incident reporting advisory</b>",
+             "Reportable technology and cyber incidents",
+             "24-hour path undocumented — closed by recommendation 2"],
+        ], [1.45 * inch, 1.75 * inch, 3.05 * inch], s),
+    ]))
 
-    vendor_block.append(Spacer(1, 6))
-    vendor_block.append(Paragraph(
-        f"Portfolio average score {sum(v['score'] for v in d['vendors']) / len(d['vendors']):.1f}/100. "
-        f"Weakest: {d['vendors'][0]['vendor_name']} at {d['vendors'][0]['score']}, "
-        f"with {d['vendors'][0]['critical_gaps']} critical gaps.", s["body"]))
-
-    # The snapshot is short enough to keep whole rather than split a two-row
-    # tail onto its own page.
-    story.append(KeepTogether(vendor_block))
+    # ── Method and limitations ───────────────────────────────
+    story.append(KeepTogether([
+        Paragraph("Method and Limitations", s["h2"]),
+        Paragraph(
+            "Loss ranges are calibrated to published Canadian financial-sector "
+            "breach benchmarks and read as the 5th and 95th percentile of a "
+            "log-normal distribution, so the mean sits above the midpoint of the "
+            "stated range. Each simulated year sums N independent loss draws, "
+            "where N follows a Poisson distribution. Scenarios are modelled "
+            "independently, though one event often triggers several. Control "
+            "effectiveness is assumed, not measured. Read these as a "
+            "decision-support range, not a forecast.", s["body"]),
+    ]))
 
     return story
 
 
 def draw_page(canvas, doc):
-    """Accent rule at the top of every page, page number at the foot."""
+    """Footer rule, source note and page number on every page."""
     canvas.saveState()
-    canvas.setStrokeColor(ACCENT)
-    canvas.setLineWidth(2)
-    canvas.line(0.9 * inch, LETTER[1] - 0.62 * inch,
-                LETTER[0] - 0.9 * inch, LETTER[1] - 0.62 * inch)
+    canvas.setStrokeColor(RULE)
+    canvas.setLineWidth(0.6)
+    canvas.line(0.75 * inch, 0.62 * inch, LETTER[0] - 0.75 * inch, 0.62 * inch)
 
-    canvas.setFont("Helvetica", 8)
+    canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(INK_MUTED)
-    canvas.drawString(0.9 * inch, 0.55 * inch,
-                      "First National Bank (Fictional) — simulated data")
-    canvas.drawRightString(LETTER[0] - 0.9 * inch, 0.55 * inch,
-                           f"Page {doc.page}")
+    canvas.drawString(0.75 * inch, 0.47 * inch, FOOTER)
+    canvas.drawRightString(LETTER[0] - 0.75 * inch, 0.47 * inch, f"Page {doc.page}")
     canvas.restoreState()
 
 
@@ -517,18 +613,16 @@ def build_pdf():
 
     doc = BaseDocTemplate(
         OUTPUT_FILE, pagesize=LETTER,
-        leftMargin=0.9 * inch, rightMargin=0.9 * inch,
-        topMargin=0.8 * inch, bottomMargin=0.8 * inch,
-        title="Cyber Risk Executive Briefing — First National Bank (Fictional)",
-        author=AUTHOR,
+        leftMargin=0.75 * inch, rightMargin=0.75 * inch,
+        topMargin=0.7 * inch, bottomMargin=0.78 * inch,
+        title="Cyber Risk Executive Summary — First National Bank (Fictional)",
+        author=f"{AUTHOR} — 4th Year CS @ University of Toronto",
     )
-    frame = Frame(doc.leftMargin, doc.bottomMargin,
-                  doc.width, doc.height, id="body")
-    doc.addPageTemplates([PageTemplate(id="main", frames=[frame],
-                                       onPage=draw_page)])
-    doc.build(build_story(d, s))
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="body")
+    doc.addPageTemplates([PageTemplate(id="main", frames=[frame], onPage=draw_page)])
+    doc.build(build_story(d, s, doc.width))
 
-    print(f"  ✅ Saved: docs/executive_summary.pdf")
+    print("  ✅ Saved: docs/executive_summary.pdf")
     print(f"     {len(d['scenarios'])} scenarios, {len(d['csf'])} CSF functions, "
           f"{len(d['vendors'])} vendors — all figures read from the database.")
 

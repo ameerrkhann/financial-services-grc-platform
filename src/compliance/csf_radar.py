@@ -20,14 +20,13 @@ CHARTS_DIR = os.path.join(os.path.dirname(__file__), "../../dashboards")
 os.makedirs(CHARTS_DIR, exist_ok=True)
 OUTPUT_FILE = os.path.join(CHARTS_DIR, "csf_radar.png")
 
-# Same palette as loss_exceedance.py so the charts read as one set
-FIG_BG     = "#0f0f0f"
-PLOT_BG    = "#1a1a1a"
-CURRENT    = "#00d4ff"
-TARGET     = "#ffdd00"
-INK        = "#ffffff"
-INK_MUTED  = "#9a9a9a"
-GRID       = "#444444"
+# Shared with loss_exceedance.py so the chart set reads as one system
+SURFACE    = "#131316"
+CURRENT    = "#4a90e2"    # same blue as the Data Breach series
+TARGET     = "#9a9aa5"    # neutral, so the eye reads current first
+INK        = "#f2f2f5"
+INK_MUTED  = "#9a9aa5"
+GRID       = "#2c2c33"
 
 
 def get_latest_scores():
@@ -73,90 +72,74 @@ def plot_radar(org_name, scores, save=True):
     current  = [c for _, c, _ in scores]
     target   = [t for _, _, t in scores]
 
+    overall    = sum(current) / len(current)
+    avg_target = sum(target) / len(target)
+
     # Close the polygon by repeating the first point
     angles   = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-    angles  += angles[:1]
-    current += current[:1]
-    target  += target[:1]
+    plot_ang = angles + angles[:1]
+    cur_vals = current + current[:1]
+    tgt_vals = target + target[:1]
 
-    fig, ax = plt.subplots(figsize=(7.5, 7.5), subplot_kw=dict(projection="polar"))
-    fig.patch.set_facecolor(FIG_BG)
-    ax.set_facecolor(PLOT_BG)
+    fig, ax = plt.subplots(figsize=(10.5, 10.2), subplot_kw=dict(projection="polar"))
+    fig.patch.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
 
-    # Target first so the current polygon sits on top of it.
-    # Dashed, so the two series are distinguishable without relying on colour.
-    ax.plot(angles, target, color=TARGET, linewidth=2, linestyle="--",
-            label=f"Target ({DEFAULT_TARGET_SCORE}.0 — Managed)")
+    # Target first, so the current polygon sits on top of it. Dashed and
+    # neutral-coloured, so the two series stay distinguishable in greyscale
+    # and for a reader with colour vision deficiency.
+    ax.plot(plot_ang, tgt_vals, color=TARGET, linewidth=2.2, linestyle=(0, (6, 4)),
+            label=f"Target maturity ({int(avg_target)})")
 
-    ax.plot(angles, current, color=CURRENT, linewidth=2.5, label="Current")
-    ax.fill(angles, current, color=CURRENT, alpha=0.25)
-    ax.scatter(angles[:-1], current[:-1], color=CURRENT, s=60, zorder=5,
-               edgecolors=PLOT_BG, linewidths=2)
+    ax.plot(plot_ang, cur_vals, color=CURRENT, linewidth=3, label="Current maturity",
+            solid_capstyle="round")
+    ax.fill(plot_ang, cur_vals, color=CURRENT, alpha=0.30)
+    ax.scatter(angles, current, color=CURRENT, s=95, zorder=6,
+               edgecolors=SURFACE, linewidths=2.5)
 
-    # Axes: function names around the outside, maturity 1-5 on the radius
+    # Axes: function names outside, maturity 1-5 along the radius
     ax.set_theta_offset(np.pi / 2)   # Govern at the top
     ax.set_theta_direction(-1)       # then clockwise
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, color=INK, fontsize=16, fontweight="bold")
-    ax.tick_params(axis="x", pad=14)
+    ax.set_xticks(angles)
+    ax.set_xticklabels(labels, color=INK, fontsize=14.5, fontweight="bold")
+    ax.tick_params(axis="x", pad=18)
 
     ax.set_ylim(0, 5)
     ax.set_yticks([1, 2, 3, 4, 5])
-    ax.set_yticklabels(["1", "2", "3", "4", "5"], color=INK_MUTED, fontsize=11)
-    ax.set_rlabel_position(180 / len(labels))
+    ax.set_yticklabels(["1", "2", "3", "4", "5"], color=INK_MUTED, fontsize=10)
+    ax.set_rlabel_position(23)
 
     ax.spines["polar"].set_color(GRID)
-    ax.grid(color=GRID, alpha=0.5, linewidth=0.8)
+    ax.grid(color=GRID, alpha=0.9, linewidth=0.9)
 
-    ax.set_title(
-        "NIST CSF 2.0 Maturity — Current vs Target\n"
-        f"{org_name}",
-        color=INK, fontsize=17, fontweight="bold", pad=30,
-    )
+    # Every point carries its score, so the chart is readable without
+    # counting rings.
+    for angle, value in zip(angles, current):
+        offset = -0.42 if value >= 2 else 0.42
+        ax.annotate(str(value), xy=(angle, value + offset),
+                    color=INK, fontsize=13, fontweight="bold",
+                    ha="center", va="center", zorder=7)
 
-    # Current is plotted second so it sits on top; reverse the handles so the
-    # legend still reads Current first.
-    handles, labels_ = ax.get_legend_handles_labels()
-    ax.legend(
-        handles[::-1], labels_[::-1],
-        loc="upper right", bbox_to_anchor=(1.16, 1.12),
-        facecolor="#2a2a2a", edgecolor=GRID, labelcolor=INK, fontsize=12,
+    # Placed in figure coordinates so it cannot overflow the canvas as the
+    # polar axes resize.
+    legend = fig.legend(
+        loc="upper right", bbox_to_anchor=(0.985, 0.918),
+        facecolor="#1b1b20", edgecolor=GRID, labelcolor=INK,
+        fontsize=11.5, borderpad=0.8, handlelength=1.8, labelspacing=0.6,
     )
+    legend.get_frame().set_linewidth(0.8)
 
-    # Direct-label only the weakest function — the one to act on first.
-    worst_i = int(np.argmin(current[:-1]))
-    ax.annotate(
-        f"{labels[worst_i]} {current[worst_i]}/5\nlargest gap",
-        xy=(angles[worst_i], current[worst_i]),
-        xytext=(angles[worst_i], current[worst_i] + 1.5),
-        color=INK, fontsize=11, ha="center",
-        arrowprops=dict(arrowstyle="->", color=INK_MUTED, linewidth=1),
-    )
+    fig.text(0.5, 0.985, "NIST CSF 2.0 Maturity — Current vs Target",
+             color=INK, fontsize=21, fontweight="bold", ha="center", va="top")
+    fig.text(0.5, 0.943,
+             f"{org_name}  ·  Overall {overall:.1f} / 5.0  ·  "
+             f"Target {avg_target:.1f}",
+             color=INK_MUTED, fontsize=13, ha="center", va="top")
 
-    # Overall score box
-    overall   = sum(c for _, c, _ in scores) / len(scores)
-    avg_target = sum(t for _, _, t in scores) / len(scores)
-    textstr = (
-        f"Overall maturity: {overall:.1f} / 5.0\n"
-        f"Target: {avg_target:.1f} / 5.0\n"
-        f"Average gap: {avg_target - overall:.1f}\n"
-        f"Functions below 3: "
-        f"{sum(1 for _, c, _ in scores if c < 3)} of {len(scores)}"
-    )
-    fig.text(
-        0.015, 0.03, textstr, color=INK, fontsize=11, va="bottom", ha="left",
-        bbox=dict(boxstyle="round,pad=0.6", facecolor="#2a2a2a", edgecolor=GRID),
-    )
-
-    fig.text(
-        0.98, 0.02,
-        "Simulated organisation — illustrative data",
-        color=INK_MUTED, fontsize=9, va="bottom", ha="right",
-    )
+    fig.subplots_adjust(top=0.825, bottom=0.075, left=0.128, right=0.872)
 
     if save:
-        plt.savefig(OUTPUT_FILE, dpi=150, bbox_inches="tight",
-                    facecolor=fig.get_facecolor())
+        plt.savefig(OUTPUT_FILE, dpi=150, facecolor=fig.get_facecolor())
         print(f"  ✅ Saved: dashboards/csf_radar.png")
 
     plt.close()

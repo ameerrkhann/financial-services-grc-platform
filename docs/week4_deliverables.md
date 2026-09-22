@@ -11,9 +11,9 @@ produces it. Nothing here is hand-authored data: every figure is read from
 
 ## Build order
 
-Each step depends on the ones above it. The GitHub Actions workflow runs this
-same sequence on every push, so a broken pipeline fails CI rather than being
-discovered later.
+Each step depends on the ones above it. The GitHub Actions workflow in
+`.github/workflows/tests.yml` runs this same sequence on every push, so a
+broken pipeline fails CI rather than being discovered later.
 
 ```bash
 python3 src/database/seed_demo_data.py               # 1. rebuild the dataset
@@ -56,8 +56,15 @@ Assessment dates are relative to `date.today()`, so the three deliberately overd
 **Produced by:** `src/risk_quantification/loss_exceedance.py`
 
 For each scenario, the probability that annual loss exceeds any given dollar
-amount, with ALE, 90th and 95th percentile reference lines. Dark theme
-(`#0f0f0f` figure, `#1a1a1a` plot area) so the chart set reads as one system.
+amount, with a dotted 1-in-10-year threshold line and per-series ALE in the
+legend. Dark theme on a `#131316` surface, shared with the radar so the chart
+set reads as one system.
+
+The five categorical hues are assigned in fixed order — a scenario keeps its
+colour regardless of how many series are drawn — and were validated rather
+than eyeballed: adjacent-pair separation clears the colour-vision-deficiency
+floor (worst pair ΔE 8.9 protan, 11.1 tritan) and the normal-vision floor
+(ΔE 18.0), with every hue passing contrast against the dark surface.
 
 Uses the same `seed_for()` seeds as `run_scenarios.py`, so the curve and the
 stored ALE come from the identical simulation.
@@ -69,16 +76,17 @@ stored ALE come from the identical simulation.
 **Produced by:** `src/compliance/csf_radar.py`
 
 Current versus target maturity across all six CSF 2.0 functions. Current is a
-filled cyan polygon, target a dashed yellow hexagon at 4, with an annotation
-box carrying the overall score, the average gap, and how many functions sit
-below the defined level. Scores are read from the database rather than
-hardcoded, so the chart tracks whatever the last assessment wrote.
+filled blue polygon — the same blue as the Data Breach series on the loss
+exceedance chart — and target is a neutral dashed hexagon at 4. The overall
+score and target sit in the subtitle, and every vertex carries its own score,
+so the chart is readable without counting rings.
 
-The weakest function is direct-labelled and the target series is dashed, so the
-two series stay distinguishable without relying on colour alone. The cyan and
-yellow pair clears colour-vision-deficiency separation comfortably (ΔE 25.5
-protan, 20.9 tritan, validated rather than eyeballed), but the chart should not
-depend on that.
+Scores are read from the database rather than hardcoded, so the chart tracks
+whatever the last assessment wrote.
+
+The target series is dashed and neutral-coloured, so the two series remain
+distinguishable in greyscale and for a reader with colour vision deficiency —
+the chart never depends on hue alone.
 
 Power BI web may block the AppSource radar visual on a university tenant, so
 this matplotlib version is the reliable one for the README and for LinkedIn.
@@ -134,19 +142,20 @@ of 2.17.
 
 **Produced by:** `src/reporting/executive_summary.py` (reportlab)
 
-Three pages, written to the CISO of First National Bank (Fictional). Every
+Four pages, written to the CISO of First National Bank (Fictional). Every
 figure is read from the database — there are no hardcoded numbers in the
 generator.
 
-| Section | Contents |
-|---------|----------|
-| Header | Title, byline, assessment and issue dates, and a simulated-data disclaimer in a boxed callout |
-| Executive Overview | Three short paragraphs leading with the $19.58M portfolio ALE |
-| Key Risk Findings | Five scenarios with ALE, 90th percentile, control cost, residual ALE and ROSI, plus a portfolio total row; embeds `lec_all_scenarios.png` |
-| NIST CSF Maturity | Overall score, per-function current versus target table; embeds `csf_radar.png` |
-| Top Three Recommendations | Derived from the data, not a fixed list |
-| OSFI Alignment | B-13, B-10, E-21 and the incident reporting advisory, using the corrected references |
-| Vendor Risk Snapshot | Tier counts with reassessment cycles, and the three overdue vendors |
+| Page | Section | Contents |
+|------|---------|----------|
+| 1 | Header | Title, byline, simulated-data disclaimer, and a five-tile KPI strip: total ALE, residual after controls, CSF maturity, vendors assessed, overdue reassessments |
+| 1 | Executive Overview | Two paragraphs leading with the $19.58M portfolio ALE |
+| 1 | 1. Quantified Risk Exposure | Five scenarios with expected annual loss, 1-in-10-year loss, control cost, residual ALE and ROSI, plus a portfolio total row |
+| 2 | — | `lec_all_scenarios.png`, then 2. Control Maturity: per-function current, target, gap and a one-line assessment, with `csf_radar.png` |
+| 3 | 3. Recommended Actions | Three derived recommendations, each with rationale, Action, Start this month, and a cross-framework reference line |
+| 4 | 4. Third-Party Risk Snapshot | All eight vendors with tier, score, critical gaps and days until (or past) reassessment |
+| 4 | 5. OSFI Alignment | B-13, B-10, E-21 and the incident reporting advisory, using the corrected references |
+| 4 | Method and Limitations | How the loss ranges are calibrated and what the figures are not |
 
 **The recommendations are derived.** Recommendation 1 is whichever scenario
 carries the highest ALE. Recommendation 2 is whichever CSF function scores
@@ -156,11 +165,18 @@ function's control ID — `RS.MA-01` is cited by 2 of 5 scenarios carrying
 $6.99M. Recommendation 3 is driven by the Critical-tier and overdue vendors,
 priced against the third-party scenario's own control set.
 
-Design: one accent colour (`#14607A`), 10.5pt body, no walls of text. The pages
-were rendered to images and reviewed before the file was called finished, which
-is how four layout defects were caught — two near-empty pages, an orphaned
-heading, a recommendation table split across a page break, and a wrapping
-column header.
+Design: one accent (`#1F4E79`) plus a reserved status palette used only for
+ratings and tiers, 10pt body, no walls of text. The brief called for 2–3 pages;
+at 10pt with two embedded charts, five tables and three recommendation blocks
+this is a four-page document, and shrinking it further would have made the
+charts illegible.
+
+Every page was rendered to an image and reviewed before the file was called
+finished. That is how seven layout defects were caught and fixed: two
+near-empty pages, an orphaned section heading, a recommendation block split
+across a page break, a `Current` header wrapping to `Curren/t`, a duplicated
+`OSFI OSFI` in a reference line, and two wrapping column headers in the vendor
+table.
 
 ---
 
@@ -256,3 +272,4 @@ These are the only artefacts the code cannot generate:
 | `dashboards/streamlit_vendor_app.png` | Screenshot — vendor assessor running in the browser |
 | `dashboards/GRC_Risk_Dashboard.pbix` | The Power BI report file itself |
 | Loom walkthrough | Replace `LOOM_LINK_HERE` in the README |
+| `.github/workflows/tests.yml` | Present in the working tree but not pushed — a personal access token needs the `workflow` scope to create it over git. Either run `gh auth refresh -h github.com -s workflow` and commit it, or paste it in through the GitHub web editor. The tests badge stays grey until it exists on the remote. |

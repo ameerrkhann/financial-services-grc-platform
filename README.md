@@ -430,7 +430,7 @@ pytest -v
 | How do you justify security spend? | ROSI, not "controls eliminate risk": $1.51M of annual control spend against $19.58M of expected loss, leaving $5.53M residual — an 830% return on a stated 60–80% effectiveness assumption |
 | How do you approach third-party risk? | OSFI B-10 aligned Streamlit app with a weighted questionnaire, automatic tiering, per-tier reassessment windows and a full audit trail |
 | What do you know about Canadian financial regulation? | B-13 effective 1 Jan 2024 (three domains); B-10 revised 2023, effective 1 May 2024; E-21 full adherence due 1 Sep 2026 with scenario testing of all critical operations expected by 1 Sep 2027 — FRFIs are actively building that testing capability now. And the 24-hour reporting clock is the incident reporting advisory, not B-13 |
-| Can you communicate risk to non-technical stakeholders? | A three-page CISO briefing with every figure read from the database, and a Power BI dashboard built for board consumption |
+| Can you communicate risk to non-technical stakeholders? | A four-page CISO briefing — KPI strip, quantified exposure, derived recommendations — with every figure read from the database, plus a Power BI dashboard built for board consumption |
 | Tell me about a mistake you caught | The FAIR engine multiplied one loss draw by the event count instead of summing independent draws. The mean was right, so it looked fine; the 99th percentile — the number used for cyber insurance — was 22–36% too high. Documented in `notebooks/README.md`, with a regression test |
 | Why GRC over other security paths? | GRC engineering — automating compliance evidence with Python and SQL — is where the discipline is heading |
 
