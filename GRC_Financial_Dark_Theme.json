@@ -1,0 +1,124 @@
+{
+  "name": "GRC Financial Risk - Dark",
+  "dataColors": [
+    "#00D4FF",
+    "#FF2D55",
+    "#FFD60A",
+    "#FF6B35",
+    "#32D74B",
+    "#7B61FF",
+    "#15C6F4",
+    "#197278",
+    "#E044A7",
+    "#4092FF"
+  ],
+  "background": "#1A1D2E",
+  "foreground": "#E8EDF4",
+  "foregroundNeutralSecondary": "#A9B2C7",
+  "tableAccent": "#00D4FF",
+  "good": "#32D74B",
+  "neutral": "#FFD60A",
+  "bad": "#FF2D55",
+  "maximum": "#FF2D55",
+  "center": "#FFD60A",
+  "minimum": "#32D74B",
+  "textClasses": {
+    "title": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 14,
+      "color": "#FFFFFF"
+    },
+    "header": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 12,
+      "color": "#00D4FF"
+    },
+    "label": {
+      "fontFace": "Segoe UI",
+      "fontSize": 10,
+      "color": "#E8EDF4"
+    },
+    "callout": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 40,
+      "color": "#00D4FF"
+    }
+  },
+  "visualStyles": {
+    "page": {
+      "*": {
+        "background": [
+          { "color": { "solid": { "color": "#0F1117" } }, "transparency": 0 }
+        ],
+        "outspace": [
+          { "color": { "solid": { "color": "#0A0C12" } }, "transparency": 0 }
+        ]
+      }
+    },
+    "*": {
+      "*": {
+        "background": [
+          { "show": true, "color": { "solid": { "color": "#1A1D2E" } }, "transparency": 0 }
+        ],
+        "border": [
+          { "show": true, "color": { "solid": { "color": "#2A2F45" } }, "radius": 10 }
+        ],
+        "dropShadow": [
+          { "show": true, "color": { "solid": { "color": "#000000" } }, "transparency": 60, "blur": 12, "spread": 0 }
+        ],
+        "title": [
+          {
+            "show": true,
+            "fontColor": { "solid": { "color": "#FFFFFF" } },
+            "background": { "solid": { "color": "#1A1D2E" } },
+            "alignment": "left",
+            "fontSize": 13,
+            "fontFamily": "Segoe UI Semibold"
+          }
+        ],
+        "visualHeader": [
+          { "show": true, "background": { "solid": { "color": "#1A1D2E" } }, "foreground": { "solid": { "color": "#A9B2C7" } } }
+        ]
+      }
+    },
+    "lineChart": {
+      "*": {
+        "categoryAxis": [
+          { "color": { "solid": { "color": "#A9B2C7" } }, "gridlineShow": false, "titleColor": { "solid": { "color": "#E8EDF4" } } }
+        ],
+        "valueAxis": [
+          { "color": { "solid": { "color": "#A9B2C7" } }, "gridlineShow": true, "gridlineColor": { "solid": { "color": "#232741" } }, "titleColor": { "solid": { "color": "#E8EDF4" } } }
+        ],
+        "lineStyles": [
+          { "strokeWidth": 3, "showMarker": false }
+        ],
+        "legend": [
+          { "show": true, "position": "TopCenter", "labelColor": { "solid": { "color": "#E8EDF4" } } }
+        ]
+      }
+    },
+    "cardVisual": {
+      "*": {
+        "calloutValue": [
+          { "fontColor": { "solid": { "color": "#00D4FF" } }, "fontSize": 40, "fontFamily": "Segoe UI Semibold" }
+        ],
+        "calloutLabel": [
+          { "fontColor": { "solid": { "color": "#A9B2C7" } }, "fontSize": 11 }
+        ]
+      }
+    },
+    "pivotTable": {
+      "*": {
+        "grid": [
+          { "gridVertical": true, "gridVerticalColor": { "solid": { "color": "#2A2F45" } }, "gridHorizontal": true, "gridHorizontalColor": { "solid": { "color": "#2A2F45" } }, "outlineColor": { "solid": { "color": "#2A2F45" } } }
+        ],
+        "columnHeaders": [
+          { "fontColor": { "solid": { "color": "#00D4FF" } }, "backColor": { "solid": { "color": "#151827" } }, "fontFamily": "Segoe UI Semibold" }
+        ],
+        "rowHeaders": [
+          { "fontColor": { "solid": { "color": "#00D4FF" } }, "backColor": { "solid": { "color": "#151827" } }, "fontFamily": "Segoe UI Semibold" }
+        ]
+      }
+    }
+  }
+}
